@@ -81,6 +81,22 @@ def get_fx_presets(track_index: int, fx_index: int) -> dict:
     )
 
 @mcp.tool()
+def set_fx_parameter(
+    track_index: int,
+    fx_index: int,
+    parameter_index: int,
+    value: float
+) -> dict:
+    """Set one normalized FX parameter and return its applied value."""
+    return send_reaper_command(
+        "set_fx_parameter",
+        track_index=track_index,
+        fx_index=fx_index,
+        parameter_index=parameter_index,
+        value=value
+    )
+
+@mcp.tool()
 def ping() -> str:
     """Simple MCP connectivity test."""
     return "pong"

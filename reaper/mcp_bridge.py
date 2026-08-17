@@ -328,11 +328,11 @@ def handle_get_fx_parameters(request):
         "parameters": parameters
     }
 
-def handle_get_fx_parameter(request):
+def resolve_fx_parameter(request):
     fx_context, error = resolve_track_fx(request)
 
     if error is not None:
-        return error
+        return None, error
 
     parameter_index = request.get("parameter_index")
 
@@ -340,7 +340,7 @@ def handle_get_fx_parameter(request):
         not isinstance(parameter_index, int)
         or isinstance(parameter_index, bool)
     ):
-        return {
+        return None, {
             "error": "parameter_index must be a 1-based integer"
         }
 
@@ -350,7 +350,7 @@ def handle_get_fx_parameter(request):
     )
 
     if parameter_index < 1 or parameter_index > parameter_count:
-        return {
+        return None, {
             "error": (
                 f"Parameter index {parameter_index} is out of range; "
                 f"FX {fx_context['fx_index']} has "
@@ -358,17 +358,28 @@ def handle_get_fx_parameter(request):
             )
         }
 
+    fx_context["parameter_index"] = parameter_index
+    fx_context["reaper_parameter_index"] = parameter_index - 1
+
+    return fx_context, None
+
+def handle_get_fx_parameter(request):
+    parameter_context, error = resolve_fx_parameter(request)
+
+    if error is not None:
+        return error
+
     parameter = get_fx_parameter_info(
-        fx_context["track"],
-        fx_context["reaper_fx_index"],
-        parameter_index - 1
+        parameter_context["track"],
+        parameter_context["reaper_fx_index"],
+        parameter_context["reaper_parameter_index"]
     )
 
     return {
-        "track_index": fx_context["track_index"],
-        "track_name": fx_context["track_name"],
-        "fx_index": fx_context["fx_index"],
-        "fx_name": fx_context["fx_name"],
+        "track_index": parameter_context["track_index"],
+        "track_name": parameter_context["track_name"],
+        "fx_index": parameter_context["fx_index"],
+        "fx_name": parameter_context["fx_name"],
         "parameter_index": parameter["index"],
         "parameter_name": parameter["name"],
         "value": parameter["value"],
@@ -376,6 +387,87 @@ def handle_get_fx_parameter(request):
         "min_value": parameter["min_value"],
         "max_value": parameter["max_value"],
         "mid_value": parameter["mid_value"]
+    }
+
+def handle_set_fx_parameter(request):
+    parameter_context, error = resolve_fx_parameter(request)
+
+    if error is not None:
+        return error
+
+    value = request.get("value")
+
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+    ):
+        return {
+            "error": "value must be a finite number from 0.0 to 1.0"
+        }
+
+    if value < 0.0 or value > 1.0:
+        return {
+            "error": (
+                f"Normalized value {value} is out of range; "
+                "expected 0.0 to 1.0"
+            )
+        }
+
+    requested_value = float(value)
+    write_succeeded = RPR_TrackFX_SetParamNormalized(
+        parameter_context["track"],
+        parameter_context["reaper_fx_index"],
+        parameter_context["reaper_parameter_index"],
+        requested_value
+    )
+
+    if not write_succeeded:
+        return {
+            "error": "REAPER failed to set the FX parameter"
+        }
+
+    try:
+        applied_value = RPR_TrackFX_GetParamNormalized(
+            parameter_context["track"],
+            parameter_context["reaper_fx_index"],
+            parameter_context["reaper_parameter_index"]
+        )
+        parameter = get_fx_parameter_info(
+            parameter_context["track"],
+            parameter_context["reaper_fx_index"],
+            parameter_context["reaper_parameter_index"]
+        )
+    except Exception as read_back_error:
+        return {
+            "error": (
+                "Failed to read back the FX parameter: "
+                f"{read_back_error}"
+            )
+        }
+
+    if (
+        not isinstance(applied_value, (int, float))
+        or isinstance(applied_value, bool)
+        or not math.isfinite(applied_value)
+        or applied_value < 0.0
+        or applied_value > 1.0
+    ):
+        return {
+            "error": "REAPER returned an invalid parameter read-back value"
+        }
+
+    return {
+        "track_index": parameter_context["track_index"],
+        "track_name": parameter_context["track_name"],
+        "fx_index": parameter_context["fx_index"],
+        "fx_name": parameter_context["fx_name"],
+        "parameter_index": parameter["index"],
+        "parameter_name": parameter["name"],
+        "requested_value": requested_value,
+        "applied_value": applied_value,
+        "formatted_value": parameter["formatted_value"],
+        "success": True
     }
 
 def handle_get_fx_presets(request):
@@ -437,6 +529,7 @@ COMMAND_HANDLERS = {
     "get_fx_parameters": handle_get_fx_parameters,
     "get_fx_parameter": handle_get_fx_parameter,
     "get_fx_presets": handle_get_fx_presets,
+    "set_fx_parameter": handle_set_fx_parameter,
 }
 
 loop()
