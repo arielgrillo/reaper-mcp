@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# REAPER project autosaves
+/example/reaper_test/AutoSaves/
