@@ -99,6 +99,22 @@ def set_fx_parameter(
     )
 
 @mcp.tool()
+def set_fx_parameter_formatted(
+    track_index: int,
+    fx_index: int,
+    parameter_index: int,
+    formatted_value: str
+) -> dict:
+    """Set one FX parameter from its human-readable formatted value."""
+    return send_reaper_command(
+        "set_fx_parameter",
+        track_index=track_index,
+        fx_index=fx_index,
+        parameter_index=parameter_index,
+        formatted_value=formatted_value
+    )
+
+@mcp.tool()
 def ping() -> str:
     """Simple MCP connectivity test."""
     return "pong"
