@@ -58,6 +58,29 @@ def get_fx_parameters(track_index: int, fx_index: int) -> dict:
     )
 
 @mcp.tool()
+def get_fx_parameter(
+    track_index: int,
+    fx_index: int,
+    parameter_index: int
+) -> dict:
+    """Return one parameter for one FX in the current REAPER project."""
+    return send_reaper_command(
+        "get_fx_parameter",
+        track_index=track_index,
+        fx_index=fx_index,
+        parameter_index=parameter_index
+    )
+
+@mcp.tool()
+def get_fx_presets(track_index: int, fx_index: int) -> dict:
+    """Return current preset information for one FX."""
+    return send_reaper_command(
+        "get_fx_presets",
+        track_index=track_index,
+        fx_index=fx_index
+    )
+
+@mcp.tool()
 def ping() -> str:
     """Simple MCP connectivity test."""
     return "pong"

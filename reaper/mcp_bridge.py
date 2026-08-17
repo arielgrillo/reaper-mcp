@@ -205,19 +205,19 @@ def handle_get_track_fx(request):
         "tracks": tracks
     }
 
-def handle_get_fx_parameters(request):
+def resolve_track_fx(request):
     track_index = request.get("track_index")
     fx_index = request.get("fx_index")
 
     if not isinstance(track_index, int) or isinstance(track_index, bool):
-        return {
+        return None, {
             "error": "track_index must be a 1-based integer"
         }
 
     track_count = RPR_CountTracks(0)
 
     if track_index < 1 or track_index > track_count:
-        return {
+        return None, {
             "error": (
                 f"Track index {track_index} is out of range; "
                 f"project has {track_count} tracks"
@@ -227,14 +227,14 @@ def handle_get_fx_parameters(request):
     track = RPR_GetTrack(0, track_index - 1)
 
     if not isinstance(fx_index, int) or isinstance(fx_index, bool):
-        return {
+        return None, {
             "error": "fx_index must be a 1-based integer"
         }
 
     fx_count = RPR_TrackFX_GetCount(track)
 
     if fx_index < 1 or fx_index > fx_count:
-        return {
+        return None, {
             "error": (
                 f"FX index {fx_index} is out of range; "
                 f"track {track_index} has {fx_count} FX"
@@ -254,6 +254,58 @@ def handle_get_fx_parameters(request):
     )
     fx_name = fx_name_info[3]
 
+    return {
+        "track_index": track_index,
+        "track": track,
+        "track_name": track_name,
+        "fx_index": fx_index,
+        "reaper_fx_index": reaper_fx_index,
+        "fx_name": fx_name
+    }, None
+
+def get_fx_parameter_info(track, reaper_fx_index, parameter_index):
+    parameter_name_info = RPR_TrackFX_GetParamName(
+        track,
+        reaper_fx_index,
+        parameter_index,
+        "",
+        512
+    )
+    parameter_value_info = RPR_TrackFX_GetParamEx(
+        track,
+        reaper_fx_index,
+        parameter_index,
+        0.0,
+        0.0,
+        0.0
+    )
+    formatted_value_info = RPR_TrackFX_GetFormattedParamValue(
+        track,
+        reaper_fx_index,
+        parameter_index,
+        "",
+        512
+    )
+
+    return {
+        "index": parameter_index + 1,
+        "name": parameter_name_info[4],
+        "value": parameter_value_info[0],
+        "formatted_value": formatted_value_info[4],
+        "min_value": parameter_value_info[4],
+        "max_value": parameter_value_info[5],
+        "mid_value": parameter_value_info[6]
+    }
+
+def handle_get_fx_parameters(request):
+    fx_context, error = resolve_track_fx(request)
+
+    if error is not None:
+        return error
+
+    track = fx_context["track"]
+    reaper_fx_index = fx_context["reaper_fx_index"]
+
     parameter_count = RPR_TrackFX_GetNumParams(
         track,
         reaper_fx_index
@@ -261,46 +313,100 @@ def handle_get_fx_parameters(request):
     parameters = []
 
     for parameter_index in range(parameter_count):
-        parameter_name_info = RPR_TrackFX_GetParamName(
+        parameters.append(get_fx_parameter_info(
             track,
             reaper_fx_index,
-            parameter_index,
-            "",
-            512
-        )
-        parameter_value_info = RPR_TrackFX_GetParamEx(
-            track,
-            reaper_fx_index,
-            parameter_index,
-            0.0,
-            0.0,
-            0.0
-        )
-        formatted_value_info = RPR_TrackFX_GetFormattedParamValue(
-            track,
-            reaper_fx_index,
-            parameter_index,
-            "",
-            512
-        )
-
-        parameters.append({
-            "index": parameter_index + 1,
-            "name": parameter_name_info[4],
-            "value": parameter_value_info[0],
-            "formatted_value": formatted_value_info[4],
-            "min_value": parameter_value_info[4],
-            "max_value": parameter_value_info[5],
-            "mid_value": parameter_value_info[6]
-        })
+            parameter_index
+        ))
 
     return {
-        "track_index": track_index,
-        "track_name": track_name,
-        "fx_index": fx_index,
-        "fx_name": fx_name,
+        "track_index": fx_context["track_index"],
+        "track_name": fx_context["track_name"],
+        "fx_index": fx_context["fx_index"],
+        "fx_name": fx_context["fx_name"],
         "parameter_count": parameter_count,
         "parameters": parameters
+    }
+
+def handle_get_fx_parameter(request):
+    fx_context, error = resolve_track_fx(request)
+
+    if error is not None:
+        return error
+
+    parameter_index = request.get("parameter_index")
+
+    if (
+        not isinstance(parameter_index, int)
+        or isinstance(parameter_index, bool)
+    ):
+        return {
+            "error": "parameter_index must be a 1-based integer"
+        }
+
+    parameter_count = RPR_TrackFX_GetNumParams(
+        fx_context["track"],
+        fx_context["reaper_fx_index"]
+    )
+
+    if parameter_index < 1 or parameter_index > parameter_count:
+        return {
+            "error": (
+                f"Parameter index {parameter_index} is out of range; "
+                f"FX {fx_context['fx_index']} has "
+                f"{parameter_count} parameters"
+            )
+        }
+
+    parameter = get_fx_parameter_info(
+        fx_context["track"],
+        fx_context["reaper_fx_index"],
+        parameter_index - 1
+    )
+
+    return {
+        "track_index": fx_context["track_index"],
+        "track_name": fx_context["track_name"],
+        "fx_index": fx_context["fx_index"],
+        "fx_name": fx_context["fx_name"],
+        "parameter_index": parameter["index"],
+        "parameter_name": parameter["name"],
+        "value": parameter["value"],
+        "formatted_value": parameter["formatted_value"],
+        "min_value": parameter["min_value"],
+        "max_value": parameter["max_value"],
+        "mid_value": parameter["mid_value"]
+    }
+
+def handle_get_fx_presets(request):
+    fx_context, error = resolve_track_fx(request)
+
+    if error is not None:
+        return error
+
+    current_preset_info = RPR_TrackFX_GetPreset(
+        fx_context["track"],
+        fx_context["reaper_fx_index"],
+        "",
+        1024
+    )
+    preset_index_info = RPR_TrackFX_GetPresetIndex(
+        fx_context["track"],
+        fx_context["reaper_fx_index"],
+        0
+    )
+
+    return {
+        "track_index": fx_context["track_index"],
+        "track_name": fx_context["track_name"],
+        "fx_index": fx_context["fx_index"],
+        "fx_name": fx_context["fx_name"],
+        "current_preset": (
+            current_preset_info[3]
+            if current_preset_info[0]
+            else None
+        ),
+        "preset_count": preset_index_info[3]
     }
 
 def loop():
@@ -329,6 +435,8 @@ COMMAND_HANDLERS = {
     "get_tracks": handle_get_tracks,
     "get_track_fx": handle_get_track_fx,
     "get_fx_parameters": handle_get_fx_parameters,
+    "get_fx_parameter": handle_get_fx_parameter,
+    "get_fx_presets": handle_get_fx_presets,
 }
 
 loop()
