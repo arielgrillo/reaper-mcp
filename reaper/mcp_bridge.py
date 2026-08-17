@@ -537,6 +537,46 @@ def handle_get_fx_parameter(request):
         "mid_value": parameter["mid_value"]
     }
 
+def handle_diagnose_fx_parameter_formatter(request):
+    parameter_context, error = resolve_fx_parameter(request)
+
+    if error is not None:
+        return error
+
+    parameter = get_fx_parameter_info(
+        parameter_context["track"],
+        parameter_context["reaper_fx_index"],
+        parameter_context["reaper_parameter_index"]
+    )
+    samples = []
+
+    for sample_index in range(11):
+        normalized_value = sample_index / 10
+        formatted_value_info = RPR_TrackFX_FormatParamValueNormalized(
+            parameter_context["track"],
+            parameter_context["reaper_fx_index"],
+            parameter_context["reaper_parameter_index"],
+            normalized_value,
+            "",
+            512
+        )
+
+        samples.append({
+            "normalized_value": normalized_value,
+            "formatter_success": bool(formatted_value_info[0]),
+            "formatted_value": formatted_value_info[5]
+        })
+
+    return {
+        "track_index": parameter_context["track_index"],
+        "track_name": parameter_context["track_name"],
+        "fx_index": parameter_context["fx_index"],
+        "fx_name": parameter_context["fx_name"],
+        "parameter_index": parameter["index"],
+        "parameter_name": parameter["name"],
+        "samples": samples
+    }
+
 def handle_set_fx_parameter(request):
     parameter_context, error = resolve_fx_parameter(request)
 
@@ -740,6 +780,9 @@ COMMAND_HANDLERS = {
     "get_fx_parameters": handle_get_fx_parameters,
     "get_fx_parameter": handle_get_fx_parameter,
     "get_fx_presets": handle_get_fx_presets,
+    "diagnose_fx_parameter_formatter": (
+        handle_diagnose_fx_parameter_formatter
+    ),
     "set_fx_parameter": handle_set_fx_parameter,
 }
 

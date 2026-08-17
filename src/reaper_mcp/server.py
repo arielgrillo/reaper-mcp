@@ -81,6 +81,20 @@ def get_fx_presets(track_index: int, fx_index: int) -> dict:
     )
 
 @mcp.tool()
+def diagnose_fx_parameter_formatter(
+    track_index: int,
+    fx_index: int,
+    parameter_index: int
+) -> dict:
+    """Sample REAPER's normalized formatter for one FX parameter."""
+    return send_reaper_command(
+        "diagnose_fx_parameter_formatter",
+        track_index=track_index,
+        fx_index=fx_index,
+        parameter_index=parameter_index
+    )
+
+@mcp.tool()
 def set_fx_parameter(
     track_index: int,
     fx_index: int,
