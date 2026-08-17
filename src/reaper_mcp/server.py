@@ -85,15 +85,17 @@ def set_fx_parameter(
     track_index: int,
     fx_index: int,
     parameter_index: int,
-    value: float
+    normalized_value: float | None = None,
+    formatted_value: str | None = None
 ) -> dict:
-    """Set one normalized FX parameter and return its applied value."""
+    """Set one FX parameter from a normalized or formatted value."""
     return send_reaper_command(
         "set_fx_parameter",
         track_index=track_index,
         fx_index=fx_index,
         parameter_index=parameter_index,
-        value=value
+        normalized_value=normalized_value,
+        formatted_value=formatted_value
     )
 
 @mcp.tool()

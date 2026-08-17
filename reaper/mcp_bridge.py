@@ -3,6 +3,7 @@
 import socket
 import json
 import math
+import re
 
 HOST = "127.0.0.1"
 PORT = 8765
@@ -297,6 +298,153 @@ def get_fx_parameter_info(track, reaper_fx_index, parameter_index):
         "mid_value": parameter_value_info[6]
     }
 
+def normalize_formatted_value(value):
+    return " ".join(value.split()).casefold()
+
+def parse_formatted_number(value):
+    normalized_value = normalize_formatted_value(value)
+    matches = list(re.finditer(
+        r"[-+]?(?:\d+(?:[.,]\d*)?|[.,]\d+)(?:e[-+]?\d+)?",
+        normalized_value
+    ))
+
+    if len(matches) != 1:
+        return None
+
+    match = matches[0]
+    number_text = match.group(0)
+
+    if "," in number_text and "." not in number_text:
+        number_text = number_text.replace(",", ".")
+
+    try:
+        number = float(number_text)
+    except ValueError:
+        return None
+
+    signature = (
+        normalized_value[:match.start()],
+        normalized_value[match.end():]
+    )
+
+    return number, signature
+
+def format_fx_parameter_normalized(
+    track,
+    reaper_fx_index,
+    reaper_parameter_index,
+    normalized_value
+):
+    formatted_value_info = RPR_TrackFX_FormatParamValueNormalized(
+        track,
+        reaper_fx_index,
+        reaper_parameter_index,
+        normalized_value,
+        "",
+        512
+    )
+
+    if not formatted_value_info[0]:
+        return None
+
+    return formatted_value_info[5]
+
+def resolve_formatted_fx_parameter(
+    track,
+    reaper_fx_index,
+    reaper_parameter_index,
+    requested_formatted_value
+):
+    normalized_target = normalize_formatted_value(
+        requested_formatted_value
+    )
+    parsed_target = parse_formatted_number(requested_formatted_value)
+
+    if parsed_target is None:
+        return None
+
+    target_number, target_signature = parsed_target
+    sample_count = 64
+    samples = []
+
+    for sample_index in range(sample_count + 1):
+        normalized_value = sample_index / sample_count
+        formatted_value = format_fx_parameter_normalized(
+            track,
+            reaper_fx_index,
+            reaper_parameter_index,
+            normalized_value
+        )
+
+        if formatted_value is None:
+            return None
+
+        if normalize_formatted_value(formatted_value) == normalized_target:
+            return normalized_value
+
+        samples.append((
+            normalized_value,
+            parse_formatted_number(formatted_value)
+        ))
+
+    for sample_index in range(sample_count):
+        low_normalized, low_parsed = samples[sample_index]
+        high_normalized, high_parsed = samples[sample_index + 1]
+
+        if low_parsed is None or high_parsed is None:
+            continue
+
+        low_number, low_signature = low_parsed
+        high_number, high_signature = high_parsed
+
+        if (
+            low_signature != target_signature
+            or high_signature != target_signature
+            or low_number == high_number
+            or target_number < min(low_number, high_number)
+            or target_number > max(low_number, high_number)
+        ):
+            continue
+
+        is_increasing = high_number > low_number
+
+        for _ in range(40):
+            middle_normalized = (
+                low_normalized + high_normalized
+            ) / 2
+            middle_formatted = format_fx_parameter_normalized(
+                track,
+                reaper_fx_index,
+                reaper_parameter_index,
+                middle_normalized
+            )
+
+            if middle_formatted is None:
+                return None
+
+            if (
+                normalize_formatted_value(middle_formatted)
+                == normalized_target
+            ):
+                return middle_normalized
+
+            middle_parsed = parse_formatted_number(middle_formatted)
+
+            if middle_parsed is None:
+                break
+
+            middle_number, middle_signature = middle_parsed
+
+            if middle_signature != target_signature:
+                break
+
+            if (middle_number < target_number) == is_increasing:
+                low_normalized = middle_normalized
+            else:
+                high_normalized = middle_normalized
+
+    return None
+
 def handle_get_fx_parameters(request):
     fx_context, error = resolve_track_fx(request)
 
@@ -395,31 +543,74 @@ def handle_set_fx_parameter(request):
     if error is not None:
         return error
 
-    value = request.get("value")
+    normalized_value = request.get("normalized_value")
+    formatted_value = request.get("formatted_value")
+    has_normalized_value = normalized_value is not None
+    has_formatted_value = formatted_value is not None
 
-    if (
-        not isinstance(value, (int, float))
-        or isinstance(value, bool)
-        or not math.isfinite(value)
-    ):
-        return {
-            "error": "value must be a finite number from 0.0 to 1.0"
-        }
-
-    if value < 0.0 or value > 1.0:
+    if has_normalized_value == has_formatted_value:
         return {
             "error": (
-                f"Normalized value {value} is out of range; "
-                "expected 0.0 to 1.0"
+                "Exactly one of normalized_value or formatted_value "
+                "must be provided"
             )
         }
 
-    requested_value = float(value)
+    if has_normalized_value:
+        if (
+            not isinstance(normalized_value, (int, float))
+            or isinstance(normalized_value, bool)
+            or not math.isfinite(normalized_value)
+        ):
+            return {
+                "error": (
+                    "normalized_value must be a finite number "
+                    "from 0.0 to 1.0"
+                )
+            }
+
+        if normalized_value < 0.0 or normalized_value > 1.0:
+            return {
+                "error": (
+                    f"Normalized value {normalized_value} is out "
+                    "of range; expected 0.0 to 1.0"
+                )
+            }
+
+        input_mode = "normalized"
+        resolved_normalized_value = float(normalized_value)
+
+    else:
+        if (
+            not isinstance(formatted_value, str)
+            or not formatted_value.strip()
+        ):
+            return {
+                "error": "formatted_value must be a non-empty string"
+            }
+
+        input_mode = "formatted"
+        resolved_normalized_value = resolve_formatted_fx_parameter(
+            parameter_context["track"],
+            parameter_context["reaper_fx_index"],
+            parameter_context["reaper_parameter_index"],
+            formatted_value
+        )
+
+        if resolved_normalized_value is None:
+            return {
+                "error": (
+                    "formatted_value could not be resolved reliably; "
+                    "only continuous parameters with a single numeric "
+                    "formatted value are supported"
+                )
+            }
+
     write_succeeded = RPR_TrackFX_SetParamNormalized(
         parameter_context["track"],
         parameter_context["reaper_fx_index"],
         parameter_context["reaper_parameter_index"],
-        requested_value
+        resolved_normalized_value
     )
 
     if not write_succeeded:
@@ -457,18 +648,38 @@ def handle_set_fx_parameter(request):
             "error": "REAPER returned an invalid parameter read-back value"
         }
 
-    return {
+    if (
+        input_mode == "formatted"
+        and normalize_formatted_value(parameter["formatted_value"])
+        != normalize_formatted_value(formatted_value)
+    ):
+        return {
+            "error": (
+                "REAPER read-back did not match the requested "
+                "formatted_value"
+            )
+        }
+
+    response = {
         "track_index": parameter_context["track_index"],
         "track_name": parameter_context["track_name"],
         "fx_index": parameter_context["fx_index"],
         "fx_name": parameter_context["fx_name"],
         "parameter_index": parameter["index"],
         "parameter_name": parameter["name"],
-        "requested_value": requested_value,
+        "input_mode": input_mode,
+        "resolved_normalized_value": resolved_normalized_value,
         "applied_value": applied_value,
         "formatted_value": parameter["formatted_value"],
         "success": True
     }
+
+    if input_mode == "normalized":
+        response["requested_normalized_value"] = float(normalized_value)
+    else:
+        response["requested_formatted_value"] = formatted_value
+
+    return response
 
 def handle_get_fx_presets(request):
     fx_context, error = resolve_track_fx(request)
