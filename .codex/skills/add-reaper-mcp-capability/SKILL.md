@@ -223,3 +223,15 @@ Do not introduce:
 * broad project-state responses when a focused tool is sufficient.
 
 Prefer the existing architecture and the smallest useful change.
+
+## Backlog Update
+
+Whenever a capability is added, completed, renamed, or materially changed:
+
+* inspect `tasks/backlog.json`;
+* update the corresponding task;
+* mark it completed only when the implementation exists and validation succeeds;
+* preserve stable task IDs;
+* do not create duplicate capability entries;
+* validate the JSON after editing;
+* include the backlog update in the same commit when it belongs to the same capability task.
