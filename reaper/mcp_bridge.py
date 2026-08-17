@@ -312,22 +312,40 @@ def parse_formatted_number(value):
         return None
 
     match = matches[0]
-    number_text = match.group(0)
+    number_text = match.group(0).replace(",", ".")
 
-    if "," in number_text and "." not in number_text:
-        number_text = number_text.replace(",", ".")
+    if "e" in number_text:
+        mantissa, exponent_text = number_text.split("e", 1)
+        exponent = int(exponent_text)
+    else:
+        mantissa = number_text
+        exponent = 0
+
+    decimal_places = (
+        len(mantissa.split(".", 1)[1])
+        if "." in mantissa
+        else 0
+    )
 
     try:
         number = float(number_text)
     except ValueError:
         return None
 
-    signature = (
-        normalized_value[:match.start()],
-        normalized_value[match.end():]
-    )
+    if not math.isfinite(number):
+        return None
 
-    return number, signature
+    tolerance = 0.5 * (10 ** (exponent - decimal_places))
+
+    return number, tolerance
+
+def formatted_numbers_match(target_number, formatted_number_info):
+    formatted_number, formatted_tolerance = formatted_number_info
+
+    return (
+        abs(formatted_number - target_number)
+        <= formatted_tolerance + 1e-12
+    )
 
 def format_fx_parameter_normalized(
     track,
@@ -355,15 +373,12 @@ def resolve_formatted_fx_parameter(
     reaper_parameter_index,
     requested_formatted_value
 ):
-    normalized_target = normalize_formatted_value(
-        requested_formatted_value
-    )
     parsed_target = parse_formatted_number(requested_formatted_value)
 
     if parsed_target is None:
         return None
 
-    target_number, target_signature = parsed_target
+    target_number, _ = parsed_target
     sample_count = 64
     samples = []
 
@@ -379,12 +394,17 @@ def resolve_formatted_fx_parameter(
         if formatted_value is None:
             return None
 
-        if normalize_formatted_value(formatted_value) == normalized_target:
+        parsed_formatted_value = parse_formatted_number(formatted_value)
+
+        if parsed_formatted_value is None:
+            return None
+
+        if formatted_numbers_match(target_number, parsed_formatted_value):
             return normalized_value
 
         samples.append((
             normalized_value,
-            parse_formatted_number(formatted_value)
+            parsed_formatted_value
         ))
 
     for sample_index in range(sample_count):
@@ -394,13 +414,11 @@ def resolve_formatted_fx_parameter(
         if low_parsed is None or high_parsed is None:
             continue
 
-        low_number, low_signature = low_parsed
-        high_number, high_signature = high_parsed
+        low_number, _ = low_parsed
+        high_number, _ = high_parsed
 
         if (
-            low_signature != target_signature
-            or high_signature != target_signature
-            or low_number == high_number
+            low_number == high_number
             or target_number < min(low_number, high_number)
             or target_number > max(low_number, high_number)
         ):
@@ -422,21 +440,15 @@ def resolve_formatted_fx_parameter(
             if middle_formatted is None:
                 return None
 
-            if (
-                normalize_formatted_value(middle_formatted)
-                == normalized_target
-            ):
-                return middle_normalized
-
             middle_parsed = parse_formatted_number(middle_formatted)
 
             if middle_parsed is None:
                 break
 
-            middle_number, middle_signature = middle_parsed
+            if formatted_numbers_match(target_number, middle_parsed):
+                return middle_normalized
 
-            if middle_signature != target_signature:
-                break
+            middle_number, _ = middle_parsed
 
             if (middle_number < target_number) == is_increasing:
                 low_normalized = middle_normalized
@@ -688,17 +700,57 @@ def handle_set_fx_parameter(request):
             "error": "REAPER returned an invalid parameter read-back value"
         }
 
-    if (
-        input_mode == "formatted"
-        and normalize_formatted_value(parameter["formatted_value"])
-        != normalize_formatted_value(formatted_value)
-    ):
-        return {
-            "error": (
-                "REAPER read-back did not match the requested "
-                "formatted_value"
+    canonical_formatted_value = None
+
+    if input_mode == "formatted":
+        requested_formatted_number = parse_formatted_number(
+            formatted_value
+        )
+        read_back_formatted_number = parse_formatted_number(
+            parameter["formatted_value"]
+        )
+        canonical_formatted_value = format_fx_parameter_normalized(
+            parameter_context["track"],
+            parameter_context["reaper_fx_index"],
+            parameter_context["reaper_parameter_index"],
+            applied_value
+        )
+        canonical_formatted_number = (
+            parse_formatted_number(canonical_formatted_value)
+            if canonical_formatted_value is not None
+            else None
+        )
+
+        if (
+            requested_formatted_number is None
+            or read_back_formatted_number is None
+            or canonical_formatted_number is None
+        ):
+            return {
+                "error": (
+                    "REAPER returned an unparseable formatted "
+                    "read-back value"
+                )
+            }
+
+        requested_number, _ = requested_formatted_number
+
+        if (
+            not formatted_numbers_match(
+                requested_number,
+                read_back_formatted_number
             )
-        }
+            or not formatted_numbers_match(
+                requested_number,
+                canonical_formatted_number
+            )
+        ):
+            return {
+                "error": (
+                    "REAPER formatted read-back did not match the "
+                    "requested numeric value"
+                )
+            }
 
     response = {
         "track_index": parameter_context["track_index"],
@@ -718,6 +770,9 @@ def handle_set_fx_parameter(request):
         response["requested_normalized_value"] = float(normalized_value)
     else:
         response["requested_formatted_value"] = formatted_value
+        response["canonical_formatted_value"] = (
+            canonical_formatted_value
+        )
 
     return response
 
