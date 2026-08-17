@@ -1,0 +1,627 @@
+{
+  "schema_version": 1,
+  "project": "reaper-mcp",
+  "tasks": [
+    {
+      "id": "FN-001",
+      "category": "foundation",
+      "title": "Python and uv project setup",
+      "status": "completed",
+      "priority": "high",
+      "capability": "python_uv_project",
+      "description": "Provide an installable Python project managed with uv.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Project metadata and dependencies are declared in pyproject.toml.",
+        "A uv lockfile records the resolved environment.",
+        "The reaper-mcp command is exposed as a project script."
+      ]
+    },
+    {
+      "id": "FN-002",
+      "category": "foundation",
+      "title": "MCP server over stdio",
+      "status": "completed",
+      "priority": "high",
+      "capability": "mcp_stdio_server",
+      "description": "Run the external REAPER MCP server using stdio transport.",
+      "depends_on": ["FN-001"],
+      "acceptance_criteria": [
+        "The server registers typed MCP tools.",
+        "The server starts with stdio transport.",
+        "The external server does not call REAPER RPR APIs directly."
+      ]
+    },
+    {
+      "id": "FN-003",
+      "category": "foundation",
+      "title": "REAPER Python ReaScript bridge",
+      "status": "completed",
+      "priority": "high",
+      "capability": "reaper_python_bridge",
+      "description": "Run a deferred Python ReaScript inside REAPER to own REAPER API access.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The bridge listens for requests while running inside REAPER.",
+        "Direct RPR API calls remain inside reaper/mcp_bridge.py.",
+        "Commands are resolved through COMMAND_HANDLERS and unknown commands return structured errors."
+      ]
+    },
+    {
+      "id": "FN-004",
+      "category": "foundation",
+      "title": "Reliable TCP and JSON bridge transport",
+      "status": "completed",
+      "priority": "high",
+      "capability": "tcp_json_transport",
+      "description": "Connect the external MCP server to the REAPER bridge over finite-timeout TCP and JSON.",
+      "depends_on": ["FN-002", "FN-003"],
+      "acceptance_criteria": [
+        "Requests are sent as JSON to 127.0.0.1:8765.",
+        "The bridge client uses a finite connection and socket timeout.",
+        "Responses are read in multiple chunks until EOF before JSON decoding."
+      ]
+    },
+    {
+      "id": "TL-001",
+      "category": "tooling",
+      "title": "Bridge validation and deployment script",
+      "status": "completed",
+      "priority": "high",
+      "capability": "deploy_reaper_bridge",
+      "description": "Validate and deploy the repository bridge to REAPER's Scripts directory.",
+      "depends_on": ["FN-001", "FN-003"],
+      "acceptance_criteria": [
+        "The script validates bridge syntax with the uv-managed Python environment.",
+        "Deployment stops when syntax validation fails.",
+        "A valid bridge is copied to the configured REAPER Scripts path."
+      ]
+    },
+    {
+      "id": "TL-002",
+      "category": "tooling",
+      "title": "Repository contribution workflow",
+      "status": "completed",
+      "priority": "high",
+      "capability": "repository_workflow",
+      "description": "Define repository-local validation, deployment, commit, and push rules.",
+      "depends_on": ["TL-001"],
+      "acceptance_criteria": [
+        "AGENTS.md documents architecture and validation requirements.",
+        "Bridge changes require successful syntax validation and deployment before commit.",
+        "Only task-related files are staged, committed, and pushed to the configured upstream."
+      ]
+    },
+    {
+      "id": "TL-003",
+      "category": "tooling",
+      "title": "REAPER MCP capability skill",
+      "status": "completed",
+      "priority": "medium",
+      "capability": "add_reaper_mcp_capability_skill",
+      "description": "Provide a repository-local Codex skill for safely extending REAPER MCP capabilities.",
+      "depends_on": ["TL-002"],
+      "acceptance_criteria": [
+        "The add-reaper-mcp-capability skill exists under .codex/skills.",
+        "The skill preserves the MCP, TCP/JSON, bridge, and REAPER API boundary.",
+        "The skill requires repository validation, deployment, and Git completion workflows."
+      ]
+    },
+    {
+      "id": "DX-001",
+      "category": "diagnostic",
+      "title": "MCP connectivity ping",
+      "status": "completed",
+      "priority": "high",
+      "capability": "ping",
+      "description": "Confirm that the external MCP server is reachable.",
+      "depends_on": ["FN-002"],
+      "acceptance_criteria": [
+        "The ping MCP tool is discoverable.",
+        "Calling ping returns pong without mutating REAPER."
+      ]
+    },
+    {
+      "id": "RO-001",
+      "category": "read-only",
+      "title": "Get track count",
+      "status": "completed",
+      "priority": "high",
+      "capability": "get_track_count",
+      "description": "Return the number of tracks in the active REAPER project.",
+      "depends_on": ["FN-004"],
+      "acceptance_criteria": [
+        "The MCP tool returns the active project's track count.",
+        "Track counting is performed through the REAPER bridge.",
+        "The operation does not mutate the project."
+      ]
+    },
+    {
+      "id": "RO-002",
+      "category": "read-only",
+      "title": "Get project information",
+      "status": "completed",
+      "priority": "high",
+      "capability": "get_project_info",
+      "description": "Return basic state for the active REAPER project.",
+      "depends_on": ["FN-004"],
+      "acceptance_criteria": [
+        "The response includes project name, track count, tempo, and play state.",
+        "Playing, paused, recording, and stopped states are represented.",
+        "The operation does not mutate the project."
+      ]
+    },
+    {
+      "id": "RO-003",
+      "category": "read-only",
+      "title": "Get tracks",
+      "status": "completed",
+      "priority": "high",
+      "capability": "get_tracks",
+      "description": "Return tracks with mix state and folder hierarchy information.",
+      "depends_on": ["FN-004"],
+      "acceptance_criteria": [
+        "Each track includes a one-based index, name, mute state, and solo state.",
+        "Each track preserves raw volume and pan values alongside dB, percentage, and direction representations.",
+        "Folder depth, folder status, nesting status, and parent track identity support multiple nesting levels.",
+        "The operation does not mutate tracks."
+      ]
+    },
+    {
+      "id": "RO-004",
+      "category": "read-only",
+      "title": "Get track FX chains",
+      "status": "completed",
+      "priority": "high",
+      "capability": "get_track_fx",
+      "description": "Return the FX chain for every track in the active project.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Every track includes its one-based index, name, FX count, and FX list.",
+        "Each FX includes its one-based index, name, enabled state, and offline state.",
+        "Tracks with zero FX return an empty FX list without error."
+      ]
+    },
+    {
+      "id": "RO-005",
+      "category": "read-only",
+      "title": "Get all parameters for one FX",
+      "status": "completed",
+      "priority": "high",
+      "capability": "get_fx_parameters",
+      "description": "Inspect every exposed parameter for one selected track FX.",
+      "depends_on": ["RO-004"],
+      "acceptance_criteria": [
+        "One-based track and FX indexes are validated with structured errors.",
+        "The response includes track and FX identity plus parameter count.",
+        "Each parameter includes a one-based index, name, raw value, formatted value, minimum, maximum, and midpoint.",
+        "The operation does not modify FX parameters."
+      ]
+    },
+    {
+      "id": "RO-006",
+      "category": "read-only",
+      "title": "Get one FX parameter",
+      "status": "completed",
+      "priority": "high",
+      "capability": "get_fx_parameter",
+      "description": "Inspect one parameter without returning the entire FX parameter list.",
+      "depends_on": ["RO-004"],
+      "acceptance_criteria": [
+        "One-based track, FX, and parameter indexes are validated with structured errors.",
+        "The response identifies the track, FX, and parameter.",
+        "The response includes raw, formatted, minimum, maximum, and midpoint values.",
+        "The operation does not modify the parameter."
+      ]
+    },
+    {
+      "id": "RO-007",
+      "category": "read-only",
+      "title": "Get FX preset information",
+      "status": "completed",
+      "priority": "medium",
+      "capability": "get_fx_presets",
+      "description": "Inspect current preset metadata for one selected track FX.",
+      "depends_on": ["RO-004"],
+      "acceptance_criteria": [
+        "One-based track and FX indexes are validated with structured errors.",
+        "The response includes track and FX identity, current preset name, and preset count.",
+        "The operation does not select or modify presets."
+      ]
+    },
+    {
+      "id": "DX-002",
+      "category": "diagnostic",
+      "title": "Diagnose FX parameter formatting",
+      "status": "completed",
+      "priority": "medium",
+      "capability": "diagnose_fx_parameter_formatter",
+      "description": "Sample REAPER's normalized FX parameter formatter for one parameter.",
+      "depends_on": ["RO-006"],
+      "acceptance_criteria": [
+        "The target track, FX, and parameter are validated.",
+        "The response samples normalized values from 0.0 through 1.0 in 0.1 increments.",
+        "Each sample reports formatter success and the formatted value.",
+        "The diagnostic does not modify the parameter."
+      ]
+    },
+    {
+      "id": "WR-001",
+      "category": "mutation",
+      "title": "Set one FX parameter",
+      "status": "completed",
+      "priority": "high",
+      "capability": "set_fx_parameter",
+      "description": "Set one FX parameter using either a normalized or supported formatted value.",
+      "depends_on": ["RO-006"],
+      "acceptance_criteria": [
+        "Exactly one of normalized_value or formatted_value is accepted and all target indexes are validated.",
+        "Normalized values must be finite and within 0.0 through 1.0.",
+        "Formatted mode and the separate set_fx_parameter_formatted MCP tool resolve continuous single-numeric displays through REAPER's formatter using deterministic bounded inversion.",
+        "Formatted matching ignores units while rejecting textual, multi-number, ambiguous, and unparseable values.",
+        "Success is reported only after normalized read-back verification, with requested, resolved, applied, and formatted values returned."
+      ]
+    },
+    {
+      "id": "RO-008",
+      "category": "read-only",
+      "title": "Get project markers and regions",
+      "status": "completed",
+      "priority": "high",
+      "capability": "get_markers_regions",
+      "description": "Return separate marker and region collections from the active project.",
+      "depends_on": ["FN-004"],
+      "acceptance_criteria": [
+        "Markers and regions are returned in timeline order with enumeration indexes and displayed numbers preserved separately.",
+        "Names, colors, seconds, durations, and region boundaries are returned, with empty arrays when none exist.",
+        "REAPER's time map supplies accumulated beats, measure, beat within measure, and time-signature context.",
+        "The operation does not modify markers or regions."
+      ]
+    },
+    {
+      "id": "RO-009",
+      "category": "read-only",
+      "title": "Get tempo map",
+      "status": "pending",
+      "priority": "high",
+      "capability": "get_tempo_map",
+      "description": "Return tempo and time-signature changes from the active project.",
+      "depends_on": ["RO-002"],
+      "acceptance_criteria": [
+        "Return ordered tempo and time-signature events with project times and musical positions.",
+        "Use REAPER's time-map APIs rather than deriving changes from a single BPM.",
+        "Return an empty event list when no explicit changes exist and do not mutate the tempo map."
+      ]
+    },
+    {
+      "id": "RO-010",
+      "category": "read-only",
+      "title": "Get track routing",
+      "status": "pending",
+      "priority": "high",
+      "capability": "get_track_routing",
+      "description": "Inspect sends, receives, and relevant routing state for project tracks.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Return track identity and ordered send and receive collections.",
+        "Preserve useful raw routing values and clear source/destination identities.",
+        "Handle tracks without routing entries and do not mutate routing."
+      ]
+    },
+    {
+      "id": "RO-011",
+      "category": "read-only",
+      "title": "Extend tracks with recording state",
+      "status": "pending",
+      "priority": "high",
+      "capability": "get_tracks_recording_state",
+      "description": "Extend get_tracks with recording input, arm, and monitoring state.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Each track reports record-arm, input assignment, and monitoring state using REAPER values.",
+        "Existing get_tracks fields and folder behavior remain unchanged.",
+        "The operation does not modify recording configuration."
+      ]
+    },
+    {
+      "id": "RO-012",
+      "category": "read-only",
+      "title": "Get track items",
+      "status": "pending",
+      "priority": "high",
+      "capability": "get_track_items",
+      "description": "Return media items grouped by track.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Return track and item identities with one-based public indexes.",
+        "Include item start, end, duration, mute, lock, and selection state when available.",
+        "Return empty item lists for empty tracks and do not mutate items."
+      ]
+    },
+    {
+      "id": "RO-013",
+      "category": "read-only",
+      "title": "Get selected tracks",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_selected_tracks",
+      "description": "Return tracks currently selected in REAPER.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Return selected track indexes and names in project order.",
+        "Return an empty list when no tracks are selected.",
+        "Do not change track selection."
+      ]
+    },
+    {
+      "id": "RO-014",
+      "category": "read-only",
+      "title": "Get item information",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_item_info",
+      "description": "Inspect one media item selected by track and item index.",
+      "depends_on": ["RO-012"],
+      "acceptance_criteria": [
+        "Validate one-based track and item indexes with structured errors.",
+        "Return item identity, timing, state, and source-related metadata available without mutation.",
+        "Do not modify the item."
+      ]
+    },
+    {
+      "id": "RO-015",
+      "category": "read-only",
+      "title": "Get item takes",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_item_takes",
+      "description": "Return takes for one validated media item.",
+      "depends_on": ["RO-014"],
+      "acceptance_criteria": [
+        "Return ordered takes with one-based indexes, names, active state, and source type when available.",
+        "Handle items with no takes cleanly.",
+        "Do not change the active take or take contents."
+      ]
+    },
+    {
+      "id": "RO-016",
+      "category": "read-only",
+      "title": "Get MIDI summary",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_midi_summary",
+      "description": "Summarize MIDI content for one validated take.",
+      "depends_on": ["RO-015"],
+      "acceptance_criteria": [
+        "Validate item and take targets and reject non-MIDI takes clearly.",
+        "Return note, control-change, and text or sysex event counts when available.",
+        "Do not modify MIDI data."
+      ]
+    },
+    {
+      "id": "RO-017",
+      "category": "read-only",
+      "title": "Get MIDI notes",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_midi_notes",
+      "description": "Return note events for one validated MIDI take.",
+      "depends_on": ["RO-016"],
+      "acceptance_criteria": [
+        "Return ordered note events with pitch, channel, velocity, timing, mute, and selection state.",
+        "Expose project-time or musical-time representations through REAPER conversion APIs where reliable.",
+        "Do not modify MIDI notes."
+      ]
+    },
+    {
+      "id": "RO-018",
+      "category": "read-only",
+      "title": "Get track envelopes",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_track_envelopes",
+      "description": "Return automation envelopes available on project tracks.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Return track identity and ordered envelope metadata.",
+        "Include envelope name, visibility, arm, active, and scaling information when available.",
+        "Do not change envelope state."
+      ]
+    },
+    {
+      "id": "RO-019",
+      "category": "read-only",
+      "title": "Get envelope points",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_envelope_points",
+      "description": "Return automation points for one validated track envelope.",
+      "depends_on": ["RO-018"],
+      "acceptance_criteria": [
+        "Validate track and envelope indexes with structured errors.",
+        "Return ordered points with time, value, shape, tension, and selection state.",
+        "Do not insert, delete, or modify envelope points."
+      ]
+    },
+    {
+      "id": "RO-020",
+      "category": "read-only",
+      "title": "Get track channels",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_track_channels",
+      "description": "Inspect channel-count and channel-related configuration for tracks.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Return each track's channel count and relevant channel configuration exposed by REAPER.",
+        "Preserve raw values when a human-readable mapping is also returned.",
+        "Do not change track channel configuration."
+      ]
+    },
+    {
+      "id": "RO-021",
+      "category": "read-only",
+      "title": "Get master track",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_master_track",
+      "description": "Return mix and state information for the active project's master track.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Return master track identity and useful volume, pan, mute, solo, and channel state.",
+        "Preserve raw and human-readable values consistently with get_tracks.",
+        "Do not modify the master track."
+      ]
+    },
+    {
+      "id": "RO-022",
+      "category": "read-only",
+      "title": "Get master FX",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_master_fx",
+      "description": "Return the active project's master-track FX chain.",
+      "depends_on": ["RO-021"],
+      "acceptance_criteria": [
+        "Return master FX count and ordered FX entries.",
+        "Each FX includes name, one-based index, enabled state, and offline state.",
+        "Handle an empty master FX chain and do not modify FX."
+      ]
+    },
+    {
+      "id": "RO-023",
+      "category": "read-only",
+      "title": "Get project time selection",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_project_time_selection",
+      "description": "Return the active project's current time selection.",
+      "depends_on": ["RO-002"],
+      "acceptance_criteria": [
+        "Return whether a time selection exists plus start, end, and duration in seconds.",
+        "Include REAPER-derived musical positions when reliable.",
+        "Do not change the time selection or loop points."
+      ]
+    },
+    {
+      "id": "RO-024",
+      "category": "read-only",
+      "title": "Get cursor position",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_cursor_position",
+      "description": "Return the active project's edit cursor position.",
+      "depends_on": ["RO-002"],
+      "acceptance_criteria": [
+        "Return cursor position in seconds.",
+        "Include REAPER-derived beat, measure, and time-signature context when reliable.",
+        "Do not move the cursor."
+      ]
+    },
+    {
+      "id": "RO-025",
+      "category": "read-only",
+      "title": "Get current context",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "get_current_context",
+      "description": "Return a focused snapshot of the user's current REAPER context.",
+      "depends_on": ["RO-013", "RO-023", "RO-024"],
+      "acceptance_criteria": [
+        "Return selected tracks, edit cursor, and time-selection context from existing focused readers.",
+        "Represent missing selections without errors.",
+        "Do not alter selection, cursor, or project state."
+      ]
+    },
+    {
+      "id": "RO-026",
+      "category": "read-only",
+      "title": "Get take FX",
+      "status": "pending",
+      "priority": "low",
+      "capability": "get_take_fx",
+      "description": "Return the FX chain for one validated media-item take.",
+      "depends_on": ["RO-015"],
+      "acceptance_criteria": [
+        "Validate item and take indexes with structured errors.",
+        "Return one-based FX indexes, names, enabled states, and offline states.",
+        "Handle takes with zero FX and do not modify the chain."
+      ]
+    },
+    {
+      "id": "WR-002",
+      "category": "mutation",
+      "title": "Set FX enabled state",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "set_fx_enabled",
+      "description": "Enable or bypass one validated track FX.",
+      "depends_on": ["RO-004"],
+      "acceptance_criteria": [
+        "Validate track, FX, and boolean input before mutation.",
+        "Perform only the requested enabled-state change through the bridge.",
+        "Read state back and report requested and applied values, reporting success only when verified."
+      ]
+    },
+    {
+      "id": "WR-003",
+      "category": "mutation",
+      "title": "Set track volume",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "set_track_volume",
+      "description": "Set volume for one validated track.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Validate track and volume input without silently clamping invalid values.",
+        "Perform only the requested volume mutation through the bridge.",
+        "Read volume back and report requested and applied raw and human-readable values."
+      ]
+    },
+    {
+      "id": "WR-004",
+      "category": "mutation",
+      "title": "Set track pan",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "set_track_pan",
+      "description": "Set pan for one validated track.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Validate track and pan input without silently clamping invalid values.",
+        "Perform only the requested pan mutation through the bridge.",
+        "Read pan back and report requested and applied raw and human-readable values."
+      ]
+    },
+    {
+      "id": "WR-005",
+      "category": "mutation",
+      "title": "Set track mute",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "set_track_mute",
+      "description": "Set mute state for one validated track.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Validate track and boolean mute input before mutation.",
+        "Perform only the requested mute-state change through the bridge.",
+        "Read mute state back and report requested and applied values."
+      ]
+    },
+    {
+      "id": "WR-006",
+      "category": "mutation",
+      "title": "Set track solo",
+      "status": "pending",
+      "priority": "medium",
+      "capability": "set_track_solo",
+      "description": "Set solo state for one validated track.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Validate track and boolean solo input before mutation.",
+        "Perform only the requested solo-state change through the bridge.",
+        "Read solo state back and report requested and applied values."
+      ]
+    }
+  ]
+}
