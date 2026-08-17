@@ -28,7 +28,7 @@ def process_request(data):
             "error": f"Unknown command: {command}"
         }
 
-    return handler()
+    return handler(request)
 
 def linear_to_db(value: float) -> float | None:
     if value <= 0:
@@ -50,12 +50,12 @@ def get_pan_info(value: float) -> dict:
         "pan_direction": direction
     }
 
-def handle_get_track_count():
+def handle_get_track_count(request):
     return {
         "track_count": RPR_CountTracks(0)
     }
 
-def handle_get_project_info():
+def handle_get_project_info(request):
     project_info = RPR_GetSetProjectInfo_String(
         0,
         "PROJECT_NAME",
@@ -91,7 +91,7 @@ def handle_get_project_info():
         "play_state": play_state
     }
 
-def handle_get_tracks():
+def handle_get_tracks(request):
     tracks = []
     folder_stack = []
 
@@ -161,7 +161,7 @@ def handle_get_tracks():
         "tracks": tracks
     }
 
-def handle_get_track_fx():
+def handle_get_track_fx(request):
     tracks = []
 
     track_count = RPR_CountTracks(0)
@@ -205,6 +205,104 @@ def handle_get_track_fx():
         "tracks": tracks
     }
 
+def handle_get_fx_parameters(request):
+    track_index = request.get("track_index")
+    fx_index = request.get("fx_index")
+
+    if not isinstance(track_index, int) or isinstance(track_index, bool):
+        return {
+            "error": "track_index must be a 1-based integer"
+        }
+
+    track_count = RPR_CountTracks(0)
+
+    if track_index < 1 or track_index > track_count:
+        return {
+            "error": (
+                f"Track index {track_index} is out of range; "
+                f"project has {track_count} tracks"
+            )
+        }
+
+    track = RPR_GetTrack(0, track_index - 1)
+
+    if not isinstance(fx_index, int) or isinstance(fx_index, bool):
+        return {
+            "error": "fx_index must be a 1-based integer"
+        }
+
+    fx_count = RPR_TrackFX_GetCount(track)
+
+    if fx_index < 1 or fx_index > fx_count:
+        return {
+            "error": (
+                f"FX index {fx_index} is out of range; "
+                f"track {track_index} has {fx_count} FX"
+            )
+        }
+
+    reaper_fx_index = fx_index - 1
+
+    track_name_info = RPR_GetTrackName(track, "", 512)
+    track_name = track_name_info[2]
+
+    fx_name_info = RPR_TrackFX_GetFXName(
+        track,
+        reaper_fx_index,
+        "",
+        512
+    )
+    fx_name = fx_name_info[3]
+
+    parameter_count = RPR_TrackFX_GetNumParams(
+        track,
+        reaper_fx_index
+    )
+    parameters = []
+
+    for parameter_index in range(parameter_count):
+        parameter_name_info = RPR_TrackFX_GetParamName(
+            track,
+            reaper_fx_index,
+            parameter_index,
+            "",
+            512
+        )
+        parameter_value_info = RPR_TrackFX_GetParamEx(
+            track,
+            reaper_fx_index,
+            parameter_index,
+            0.0,
+            0.0,
+            0.0
+        )
+        formatted_value_info = RPR_TrackFX_GetFormattedParamValue(
+            track,
+            reaper_fx_index,
+            parameter_index,
+            "",
+            512
+        )
+
+        parameters.append({
+            "index": parameter_index + 1,
+            "name": parameter_name_info[4],
+            "value": parameter_value_info[0],
+            "formatted_value": formatted_value_info[4],
+            "min_value": parameter_value_info[4],
+            "max_value": parameter_value_info[5],
+            "mid_value": parameter_value_info[6]
+        })
+
+    return {
+        "track_index": track_index,
+        "track_name": track_name,
+        "fx_index": fx_index,
+        "fx_name": fx_name,
+        "parameter_count": parameter_count,
+        "parameters": parameters
+    }
+
 def loop():
     try:
         client, address = server.accept()
@@ -230,6 +328,7 @@ COMMAND_HANDLERS = {
     "get_project_info": handle_get_project_info,
     "get_tracks": handle_get_tracks,
     "get_track_fx": handle_get_track_fx,
+    "get_fx_parameters": handle_get_fx_parameters,
 }
 
 loop()

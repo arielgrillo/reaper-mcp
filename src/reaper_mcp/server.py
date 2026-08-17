@@ -10,10 +10,11 @@ PORT = 8765
 mcp = MCPServer("reaper-mcp")
 
 
-def send_reaper_command(command: str) -> dict:
+def send_reaper_command(command: str, **arguments) -> dict:
     with socket.create_connection((HOST, PORT), timeout=2) as sock:
         request = {
-            "command": command
+            "command": command,
+            **arguments
         }
 
         sock.sendall(json.dumps(request).encode("utf-8"))
@@ -32,6 +33,15 @@ def get_tracks() -> dict:
 def get_track_fx() -> dict:
     """Return the FX chains for all tracks in the current REAPER project."""
     return send_reaper_command("get_track_fx")
+
+@mcp.tool()
+def get_fx_parameters(track_index: int, fx_index: int) -> dict:
+    """Return parameters for one FX on a track in the current REAPER project."""
+    return send_reaper_command(
+        "get_fx_parameters",
+        track_index=track_index,
+        fx_index=fx_index
+    )
 
 @mcp.tool()
 def ping() -> str:
