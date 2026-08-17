@@ -44,6 +44,11 @@ def get_tracks() -> dict:
     return send_reaper_command("get_tracks")
 
 @mcp.tool()
+def get_markers_regions() -> dict:
+    """Return all markers and regions from the current REAPER project."""
+    return send_reaper_command("get_markers_regions")
+
+@mcp.tool()
 def get_track_fx() -> dict:
     """Return the FX chains for all tracks in the current REAPER project."""
     return send_reaper_command("get_track_fx")

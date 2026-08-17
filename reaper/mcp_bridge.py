@@ -92,6 +92,101 @@ def handle_get_project_info(request):
         "play_state": play_state
     }
 
+def get_musical_position(position_seconds):
+    beat_info = RPR_TimeMap2_timeToBeats(
+        0,
+        position_seconds,
+        0,
+        0,
+        0.0,
+        0
+    )
+
+    beat_within_measure = beat_info[0]
+    measure = beat_info[3]
+    measure_length = beat_info[4]
+    full_beats = beat_info[5]
+    denominator = beat_info[6]
+
+    return {
+        "position_beats": full_beats,
+        "musical_position": {
+            "measure": measure + 1,
+            "beat": full_beats,
+            "beat_within_measure": beat_within_measure + 1,
+            "time_signature": {
+                "numerator": measure_length,
+                "denominator": denominator
+            }
+        }
+    }
+
+def handle_get_markers_regions(request):
+    markers = []
+    regions = []
+    marker_region_count = RPR_CountProjectMarkers(0, 0, 0)[0]
+
+    for enumeration_index in range(marker_region_count):
+        marker_info = RPR_EnumProjectMarkers3(
+            0,
+            enumeration_index,
+            False,
+            0.0,
+            0.0,
+            "",
+            0,
+            0
+        )
+
+        if not marker_info[0]:
+            continue
+
+        is_region = bool(marker_info[3])
+        position_seconds = marker_info[4]
+        end_seconds = marker_info[5]
+        name = marker_info[6]
+        project_number = marker_info[7]
+        color = marker_info[8]
+
+        if is_region:
+            start_musical = get_musical_position(position_seconds)
+            end_musical = get_musical_position(end_seconds)
+
+            regions.append({
+                "index": enumeration_index,
+                "region_number": project_number,
+                "name": name,
+                "start_seconds": position_seconds,
+                "end_seconds": end_seconds,
+                "duration_seconds": end_seconds - position_seconds,
+                "start_beats": start_musical["position_beats"],
+                "end_beats": end_musical["position_beats"],
+                "start_musical_position": (
+                    start_musical["musical_position"]
+                ),
+                "end_musical_position": end_musical["musical_position"],
+                "color": color,
+                "is_region": True
+            })
+        else:
+            musical = get_musical_position(position_seconds)
+
+            markers.append({
+                "index": enumeration_index,
+                "marker_number": project_number,
+                "name": name,
+                "position_seconds": position_seconds,
+                "position_beats": musical["position_beats"],
+                "musical_position": musical["musical_position"],
+                "color": color,
+                "is_region": False
+            })
+
+    return {
+        "markers": markers,
+        "regions": regions
+    }
+
 def handle_get_tracks(request):
     tracks = []
     folder_stack = []
@@ -830,6 +925,7 @@ def loop():
 COMMAND_HANDLERS = {
     "get_track_count": handle_get_track_count,
     "get_project_info": handle_get_project_info,
+    "get_markers_regions": handle_get_markers_regions,
     "get_tracks": handle_get_tracks,
     "get_track_fx": handle_get_track_fx,
     "get_fx_parameters": handle_get_fx_parameters,
