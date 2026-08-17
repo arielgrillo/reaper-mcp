@@ -6,12 +6,16 @@ from mcp.server.mcpserver import MCPServer
 
 HOST = "127.0.0.1"
 PORT = 8765
+BRIDGE_TIMEOUT = 30
 
 mcp = MCPServer("reaper-mcp")
 
 
 def send_reaper_command(command: str, **arguments) -> dict:
-    with socket.create_connection((HOST, PORT), timeout=2) as sock:
+    with socket.create_connection(
+        (HOST, PORT),
+        timeout=BRIDGE_TIMEOUT
+    ) as sock:
         request = {
             "command": command,
             **arguments
@@ -19,7 +23,17 @@ def send_reaper_command(command: str, **arguments) -> dict:
 
         sock.sendall(json.dumps(request).encode("utf-8"))
 
-        response = sock.recv(4096)
+        response_chunks = []
+
+        while True:
+            chunk = sock.recv(4096)
+
+            if not chunk:
+                break
+
+            response_chunks.append(chunk)
+
+        response = b"".join(response_chunks)
 
         return json.loads(response.decode("utf-8"))
 
