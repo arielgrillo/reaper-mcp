@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>REAPER MCP Backlog</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">REAPER MCP</p>
+          <h1>Capability backlog</h1>
+          <p class="subtitle">A live view of completed and planned project capabilities.</p>
+        </div>
+        <div class="progress-card" aria-label="Completion progress">
+          <div class="progress-copy">
+            <span>Overall progress</span>
+            <strong id="progress-label">Loading…</strong>
+          </div>
+          <div class="progress-track" aria-hidden="true">
+            <div id="progress-bar" class="progress-bar"></div>
+          </div>
+        </div>
+      </header>
+
+      <section id="summary" class="summary" aria-label="Backlog summary"></section>
+
+      <section class="toolbar" aria-label="Task filters">
+        <label class="search-field">
+          <span class="sr-only">Search tasks</span>
+          <input id="search" type="search" placeholder="Search title, ID, or capability…">
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="status-filter">
+            <option value="all">All statuses</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+          </select>
+        </label>
+        <label>
+          <span>Category</span>
+          <select id="category-filter">
+            <option value="all">All categories</option>
+          </select>
+        </label>
+        <label>
+          <span>Priority</span>
+          <select id="priority-filter">
+            <option value="all">All priorities</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </label>
+      </section>
+
+      <div class="results-heading">
+        <h2>Tasks</h2>
+        <span id="result-count" aria-live="polite"></span>
+      </div>
+      <section id="task-list" class="task-list" aria-live="polite"></section>
+      <p id="empty-state" class="empty-state" hidden>No tasks match these filters.</p>
+      <p id="error-state" class="error-state" hidden></p>
+    </main>
+
+    <template id="task-template">
+      <article class="task-card">
+        <div class="task-topline">
+          <span class="task-id"></span>
+          <span class="status-pill"></span>
+        </div>
+        <h3 class="task-title"></h3>
+        <p class="task-description"></p>
+        <div class="task-meta"></div>
+        <details>
+          <summary>Acceptance criteria</summary>
+          <ul class="criteria"></ul>
+        </details>
+        <div class="dependencies"></div>
+      </article>
+    </template>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

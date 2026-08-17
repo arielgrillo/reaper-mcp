@@ -1,0 +1,151 @@
+const state = {
+  tasks: [],
+  filters: {
+    search: "",
+    status: "all",
+    category: "all",
+    priority: "all"
+  }
+};
+
+const elements = {
+  summary: document.querySelector("#summary"),
+  progressBar: document.querySelector("#progress-bar"),
+  progressLabel: document.querySelector("#progress-label"),
+  search: document.querySelector("#search"),
+  status: document.querySelector("#status-filter"),
+  category: document.querySelector("#category-filter"),
+  priority: document.querySelector("#priority-filter"),
+  resultCount: document.querySelector("#result-count"),
+  taskList: document.querySelector("#task-list"),
+  emptyState: document.querySelector("#empty-state"),
+  errorState: document.querySelector("#error-state"),
+  template: document.querySelector("#task-template")
+};
+
+function label(value) {
+  return value.replaceAll("-", " ").replace(/\b\w/g, character => character.toUpperCase());
+}
+
+function renderSummary() {
+  const completed = state.tasks.filter(task => task.status === "completed").length;
+  const pending = state.tasks.length - completed;
+  const percentage = state.tasks.length ? Math.round((completed / state.tasks.length) * 100) : 0;
+  const categories = new Set(state.tasks.map(task => task.category)).size;
+  const metrics = [
+    ["Total tasks", state.tasks.length],
+    ["Completed", completed],
+    ["Pending", pending],
+    ["Categories", categories]
+  ];
+
+  elements.summary.replaceChildren(...metrics.map(([name, value]) => {
+    const card = document.createElement("div");
+    card.className = "summary-card";
+    card.innerHTML = `<span>${name}</span><strong>${value}</strong>`;
+    return card;
+  }));
+
+  elements.progressLabel.textContent = `${completed} / ${state.tasks.length} · ${percentage}%`;
+  elements.progressBar.style.width = `${percentage}%`;
+}
+
+function populateCategories() {
+  const categories = [...new Set(state.tasks.map(task => task.category))].sort();
+  for (const category of categories) {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = label(category);
+    elements.category.append(option);
+  }
+}
+
+function matchesFilters(task) {
+  const query = state.filters.search.toLowerCase();
+  const searchable = [task.id, task.title, task.capability, task.description].join(" ").toLowerCase();
+  return (!query || searchable.includes(query))
+    && (state.filters.status === "all" || task.status === state.filters.status)
+    && (state.filters.category === "all" || task.category === state.filters.category)
+    && (state.filters.priority === "all" || task.priority === state.filters.priority);
+}
+
+function createTaskCard(task) {
+  const fragment = elements.template.content.cloneNode(true);
+  const card = fragment.querySelector(".task-card");
+  card.classList.add(task.status);
+  fragment.querySelector(".task-id").textContent = task.id;
+
+  const status = fragment.querySelector(".status-pill");
+  status.textContent = label(task.status);
+  status.classList.add(task.status);
+
+  fragment.querySelector(".task-title").textContent = task.title;
+  fragment.querySelector(".task-description").textContent = task.description;
+
+  const meta = fragment.querySelector(".task-meta");
+  for (const value of [task.category, `${task.priority} priority`, task.capability]) {
+    const pill = document.createElement("span");
+    pill.className = "meta-pill";
+    pill.textContent = label(value);
+    meta.append(pill);
+  }
+
+  const criteria = fragment.querySelector(".criteria");
+  for (const criterion of task.acceptance_criteria) {
+    const item = document.createElement("li");
+    item.textContent = criterion;
+    criteria.append(item);
+  }
+
+  const dependencies = fragment.querySelector(".dependencies");
+  if (task.depends_on.length) {
+    dependencies.innerHTML = `Depends on: ${task.depends_on.map(id => `<code>${id}</code>`).join(", ")}`;
+  } else {
+    dependencies.textContent = "No dependencies";
+  }
+
+  return fragment;
+}
+
+function renderTasks() {
+  const visibleTasks = state.tasks.filter(matchesFilters);
+  elements.taskList.replaceChildren(...visibleTasks.map(createTaskCard));
+  elements.resultCount.textContent = `${visibleTasks.length} of ${state.tasks.length}`;
+  elements.emptyState.hidden = visibleTasks.length !== 0;
+}
+
+function bindFilters() {
+  elements.search.addEventListener("input", event => {
+    state.filters.search = event.target.value.trim();
+    renderTasks();
+  });
+
+  for (const [name, element] of [
+    ["status", elements.status],
+    ["category", elements.category],
+    ["priority", elements.priority]
+  ]) {
+    element.addEventListener("change", event => {
+      state.filters[name] = event.target.value;
+      renderTasks();
+    });
+  }
+}
+
+async function initialize() {
+  try {
+    const response = await fetch("backlog.json");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const backlog = await response.json();
+    state.tasks = backlog.tasks;
+    renderSummary();
+    populateCategories();
+    bindFilters();
+    renderTasks();
+  } catch (error) {
+    elements.errorState.hidden = false;
+    elements.errorState.textContent = `Could not load backlog.json: ${error.message}. Serve this directory through a local web server.`;
+  }
+}
+
+initialize();
