@@ -628,7 +628,7 @@
           "description": "get_envelope_points formats a Volume envelope point at 4.0 seconds as +57.1dB even though REAPER displays the point as 0.00 dB, because the raw point value is not being interpreted with the envelope's effective formatting semantics.",
           "status": "fixed",
           "discovered_during": "runtime-validation",
-          "fixed_in": null
+          "fixed_in": "882b34badbfa01329ddee88ddeedb044727235af"
         }
       ]
     },
