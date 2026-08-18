@@ -257,6 +257,64 @@ def set_fx_parameter_formatted(
     )
 
 @mcp.tool()
+def set_fx_enabled(
+    track_index: int, fx_index: int, enabled: bool
+) -> dict:
+    """Enable or bypass one track FX."""
+    return send_reaper_command(
+        "set_fx_enabled",
+        track_index=track_index,
+        fx_index=fx_index,
+        enabled=enabled
+    )
+
+@mcp.tool()
+def set_track_volume(
+    track_index: int,
+    volume_raw: float | None = None,
+    volume_db: float | None = None
+) -> dict:
+    """Set one track's volume from a raw linear or dB value."""
+    return send_reaper_command(
+        "set_track_volume",
+        track_index=track_index,
+        volume_raw=volume_raw,
+        volume_db=volume_db
+    )
+
+@mcp.tool()
+def set_track_pan(
+    track_index: int,
+    pan_raw: float | None = None,
+    pan_percent: float | None = None
+) -> dict:
+    """Set one track's pan from a raw or signed percentage value."""
+    return send_reaper_command(
+        "set_track_pan",
+        track_index=track_index,
+        pan_raw=pan_raw,
+        pan_percent=pan_percent
+    )
+
+@mcp.tool()
+def set_track_mute(track_index: int, muted: bool) -> dict:
+    """Set one track's mute state."""
+    return send_reaper_command(
+        "set_track_mute",
+        track_index=track_index,
+        muted=muted
+    )
+
+@mcp.tool()
+def set_track_solo(track_index: int, solo: bool) -> dict:
+    """Set one track's normal solo state."""
+    return send_reaper_command(
+        "set_track_solo",
+        track_index=track_index,
+        solo=solo
+    )
+
+@mcp.tool()
 def ping() -> str:
     """Simple MCP connectivity test."""
     return "pong"

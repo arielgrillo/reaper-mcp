@@ -1726,6 +1726,245 @@ def handle_set_fx_parameter(request):
 
     return response
 
+def handle_set_fx_enabled(request):
+    context, error = resolve_track_fx(request)
+
+    if error is not None:
+        return error
+
+    enabled = request.get("enabled")
+
+    if not isinstance(enabled, bool):
+        return {"error": "enabled must be a boolean"}
+
+    RPR_TrackFX_SetEnabled(
+        context["track"], context["reaper_fx_index"], enabled
+    )
+    applied_enabled = bool(RPR_TrackFX_GetEnabled(
+        context["track"], context["reaper_fx_index"]
+    ))
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "fx_index": context["fx_index"],
+        "fx_name": context["fx_name"],
+        "requested_enabled": enabled,
+        "applied_enabled": applied_enabled,
+        "success": applied_enabled == enabled
+    }
+
+def handle_set_track_volume(request):
+    context, error = resolve_track(request)
+
+    if error is not None:
+        return error
+
+    volume_raw = request.get("volume_raw")
+    volume_db = request.get("volume_db")
+    has_raw = volume_raw is not None
+    has_db = volume_db is not None
+
+    if has_raw == has_db:
+        return {
+            "error": "Exactly one of volume_raw or volume_db must be provided"
+        }
+
+    requested_value = volume_raw if has_raw else volume_db
+
+    if (
+        not isinstance(requested_value, (int, float))
+        or isinstance(requested_value, bool)
+        or not math.isfinite(requested_value)
+    ):
+        return {"error": "Volume input must be a finite number"}
+
+    if has_raw:
+        if volume_raw < 0.0:
+            return {"error": "volume_raw must be greater than or equal to 0"}
+
+        input_mode = "raw"
+        resolved_volume_raw = float(volume_raw)
+        requested_volume_raw = resolved_volume_raw
+        requested_volume_db = linear_to_db(resolved_volume_raw)
+    else:
+        input_mode = "db"
+        try:
+            resolved_volume_raw = math.pow(
+                10.0, float(volume_db) / 20.0
+            )
+        except OverflowError:
+            return {
+                "error": "volume_db is outside the representable volume range"
+            }
+
+        if not math.isfinite(resolved_volume_raw):
+            return {
+                "error": "volume_db is outside the representable volume range"
+            }
+
+        requested_volume_raw = resolved_volume_raw
+        requested_volume_db = float(volume_db)
+
+    write_succeeded = RPR_SetMediaTrackInfo_Value(
+        context["track"], "D_VOL", resolved_volume_raw
+    )
+
+    if not write_succeeded:
+        return {"error": "REAPER failed to set track volume"}
+
+    applied_volume_raw = RPR_GetMediaTrackInfo_Value(
+        context["track"], "D_VOL"
+    )
+    applied_volume_db = linear_to_db(applied_volume_raw)
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "input_mode": input_mode,
+        "requested_volume_raw": requested_volume_raw,
+        "requested_volume_db": requested_volume_db,
+        "applied_volume_raw": applied_volume_raw,
+        "applied_volume_db": (
+            round(applied_volume_db, 2)
+            if applied_volume_db is not None
+            else None
+        ),
+        "success": math.isclose(
+            applied_volume_raw, resolved_volume_raw,
+            rel_tol=1e-9, abs_tol=1e-12
+        )
+    }
+
+def handle_set_track_pan(request):
+    context, error = resolve_track(request)
+
+    if error is not None:
+        return error
+
+    pan_raw = request.get("pan_raw")
+    pan_percent = request.get("pan_percent")
+    has_raw = pan_raw is not None
+    has_percent = pan_percent is not None
+
+    if has_raw == has_percent:
+        return {
+            "error": "Exactly one of pan_raw or pan_percent must be provided"
+        }
+
+    requested_value = pan_raw if has_raw else pan_percent
+
+    if (
+        not isinstance(requested_value, (int, float))
+        or isinstance(requested_value, bool)
+        or not math.isfinite(requested_value)
+    ):
+        return {"error": "Pan input must be a finite number"}
+
+    if has_raw:
+        if pan_raw < -1.0 or pan_raw > 1.0:
+            return {"error": "pan_raw must be from -1.0 to 1.0"}
+
+        input_mode = "raw"
+        resolved_pan_raw = float(pan_raw)
+    else:
+        if pan_percent < -100.0 or pan_percent > 100.0:
+            return {"error": "pan_percent must be from -100.0 to 100.0"}
+
+        input_mode = "percent"
+        resolved_pan_raw = float(pan_percent) / 100.0
+
+    write_succeeded = RPR_SetMediaTrackInfo_Value(
+        context["track"], "D_PAN", resolved_pan_raw
+    )
+
+    if not write_succeeded:
+        return {"error": "REAPER failed to set track pan"}
+
+    applied_pan_raw = RPR_GetMediaTrackInfo_Value(
+        context["track"], "D_PAN"
+    )
+    requested_pan = get_pan_info(resolved_pan_raw)
+    applied_pan = get_pan_info(applied_pan_raw)
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "input_mode": input_mode,
+        "requested_pan_raw": requested_pan["pan"],
+        "requested_pan_percent": requested_pan["pan_percent"],
+        "requested_pan_direction": requested_pan["pan_direction"],
+        "applied_pan_raw": applied_pan["pan"],
+        "applied_pan_percent": applied_pan["pan_percent"],
+        "applied_pan_direction": applied_pan["pan_direction"],
+        "success": math.isclose(
+            applied_pan_raw, resolved_pan_raw,
+            rel_tol=1e-9, abs_tol=1e-12
+        )
+    }
+
+def handle_set_track_mute(request):
+    context, error = resolve_track(request)
+
+    if error is not None:
+        return error
+
+    muted = request.get("muted")
+
+    if not isinstance(muted, bool):
+        return {"error": "muted must be a boolean"}
+
+    write_succeeded = RPR_SetMediaTrackInfo_Value(
+        context["track"], "B_MUTE", 1.0 if muted else 0.0
+    )
+
+    if not write_succeeded:
+        return {"error": "REAPER failed to set track mute state"}
+
+    applied_muted = bool(RPR_GetMediaTrackInfo_Value(
+        context["track"], "B_MUTE"
+    ))
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "requested_muted": muted,
+        "applied_muted": applied_muted,
+        "success": applied_muted == muted
+    }
+
+def handle_set_track_solo(request):
+    context, error = resolve_track(request)
+
+    if error is not None:
+        return error
+
+    solo = request.get("solo")
+
+    if not isinstance(solo, bool):
+        return {"error": "solo must be a boolean"}
+
+    setter_result = RPR_SetTrackUISolo(
+        context["track"], 1 if solo else 0, 1
+    )
+
+    if setter_result < 0:
+        return {"error": "REAPER failed to set track solo state"}
+
+    applied_solo_raw = int(RPR_GetMediaTrackInfo_Value(
+        context["track"], "I_SOLO"
+    ))
+    applied_solo = applied_solo_raw > 0
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "requested_solo": solo,
+        "applied_solo": applied_solo,
+        "applied_solo_raw": applied_solo_raw,
+        "success": applied_solo == solo
+    }
+
 def handle_get_fx_presets(request):
     fx_context, error = resolve_track_fx(request)
 
@@ -1807,6 +2046,11 @@ COMMAND_HANDLERS = {
         handle_diagnose_fx_parameter_formatter
     ),
     "set_fx_parameter": handle_set_fx_parameter,
+    "set_fx_enabled": handle_set_fx_enabled,
+    "set_track_volume": handle_set_track_volume,
+    "set_track_pan": handle_set_track_pan,
+    "set_track_mute": handle_set_track_mute,
+    "set_track_solo": handle_set_track_solo,
 }
 
 loop()
