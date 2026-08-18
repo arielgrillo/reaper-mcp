@@ -852,7 +852,7 @@
       "id": "WR-008",
       "category": "mutation",
       "title": "Create MIDI item",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "create_midi_item",
       "description": "Create a measure-bounded MIDI MediaItem and populate it with a validated sequential MIDI-note phrase.",
