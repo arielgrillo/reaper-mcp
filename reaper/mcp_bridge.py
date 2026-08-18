@@ -871,27 +871,26 @@ def get_envelope_metadata(envelope, envelope_index):
     }
 
 def handle_get_track_envelopes(request):
-    tracks = []
+    context, error = resolve_track(request)
 
-    for reaper_track_index in range(RPR_CountTracks(0)):
-        track = RPR_GetTrack(0, reaper_track_index)
-        track_index, track_name = get_track_identity(track)
-        envelope_count = RPR_CountTrackEnvelopes(track)
-        envelopes = [
-            get_envelope_metadata(
-                RPR_GetTrackEnvelope(track, envelope_index),
-                envelope_index + 1
-            )
-            for envelope_index in range(envelope_count)
-        ]
-        tracks.append({
-            "track_index": track_index,
-            "track_name": track_name,
-            "envelope_count": envelope_count,
-            "envelopes": envelopes
-        })
+    if error is not None:
+        return error
 
-    return {"tracks": tracks}
+    envelope_count = RPR_CountTrackEnvelopes(context["track"])
+    envelopes = [
+        get_envelope_metadata(
+            RPR_GetTrackEnvelope(context["track"], envelope_index),
+            envelope_index + 1
+        )
+        for envelope_index in range(envelope_count)
+    ]
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "envelope_count": envelope_count,
+        "envelopes": envelopes
+    }
 
 def resolve_track_envelope(request):
     context, error = resolve_track(request)

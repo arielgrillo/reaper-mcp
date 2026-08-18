@@ -103,9 +103,12 @@ def get_midi_notes(
     )
 
 @mcp.tool()
-def get_track_envelopes() -> dict:
-    """Return automation envelopes grouped by track."""
-    return send_reaper_command("get_track_envelopes")
+def get_track_envelopes(track_index: int) -> dict:
+    """Return automation envelopes for one track."""
+    return send_reaper_command(
+        "get_track_envelopes",
+        track_index=track_index
+    )
 
 @mcp.tool()
 def get_envelope_points(track_index: int, envelope_index: int) -> dict:

@@ -600,10 +600,10 @@
       "status": "testing",
       "priority": "medium",
       "capability": "get_track_envelopes",
-      "description": "Return automation envelopes available on project tracks.",
+      "description": "Return automation envelopes available on one validated track.",
       "depends_on": ["RO-003"],
       "acceptance_criteria": [
-        "Return track identity and ordered envelope metadata.",
+        "Require a public one-based track_index and return only that track's identity and ordered envelope metadata.",
         "Include envelope name, visibility, arm, active, and scaling information when available.",
         "Do not change envelope state."
       ]
