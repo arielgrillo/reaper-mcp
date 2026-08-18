@@ -34,19 +34,21 @@ function label(value) {
 
 function renderSummary() {
   const completed = state.tasks.filter(task => task.status === "completed").length;
-  const pending = state.tasks.length - completed;
+  const testing = state.tasks.filter(task => task.status === "testing").length;
+  const pending = state.tasks.filter(task => task.status === "pending").length;
   const percentage = state.tasks.length ? Math.round((completed / state.tasks.length) * 100) : 0;
   const categories = new Set(state.tasks.map(task => task.category)).size;
   const metrics = [
-    ["Total tasks", state.tasks.length],
-    ["Completed", completed],
-    ["Pending", pending],
-    ["Categories", categories]
+    ["Total tasks", state.tasks.length, "total"],
+    ["Completed", completed, "completed"],
+    ["Testing", testing, "testing"],
+    ["Pending", pending, "pending"],
+    ["Categories", categories, "categories"]
   ];
 
-  elements.summary.replaceChildren(...metrics.map(([name, value]) => {
+  elements.summary.replaceChildren(...metrics.map(([name, value, status]) => {
     const card = document.createElement("div");
-    card.className = "summary-card";
+    card.className = `summary-card summary-card-${status}`;
     card.innerHTML = `<span>${name}</span><strong>${value}</strong>`;
     return card;
   }));
