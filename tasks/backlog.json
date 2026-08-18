@@ -472,7 +472,7 @@
       "id": "RO-012",
       "category": "read-only",
       "title": "Get track items",
-      "status": "completed",
+      "status": "testing",
       "priority": "high",
       "capability": "get_track_items",
       "description": "Return media items for one validated project track.",
@@ -480,6 +480,7 @@
       "acceptance_criteria": [
         "Validate a one-based track index and return only that track's identity and items.",
         "Include item start, end, duration, mute, lock, and selection state when available.",
+        "Include one-based start/end measures and beats derived from REAPER's time map.",
         "Return empty item lists for empty tracks and do not mutate items."
       ],
       "bugs": [
@@ -519,6 +520,7 @@
       "acceptance_criteria": [
         "Validate one-based track and item indexes with structured errors.",
         "Return item identity, timing, state, and source-related metadata available without mutation.",
+        "Include one-based start/end measures and beats derived from REAPER's time map.",
         "Do not modify the item."
       ],
       "bugs": [

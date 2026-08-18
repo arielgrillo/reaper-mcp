@@ -441,13 +441,20 @@ def get_item_identity(item):
 def get_item_state(item, item_index):
     position = RPR_GetMediaItemInfo_Value(item, "D_POSITION")
     duration = RPR_GetMediaItemInfo_Value(item, "D_LENGTH")
+    end_position = position + duration
+    start_musical = get_musical_position(position)["musical_position"]
+    end_musical = get_musical_position(end_position)["musical_position"]
 
     return {
         "item_index": item_index,
         "guid": get_item_identity(item),
         "position_seconds": position,
-        "end_seconds": position + duration,
+        "end_seconds": end_position,
         "duration_seconds": duration,
+        "start_measure": start_musical["measure"],
+        "start_beat": start_musical["beat_within_measure"],
+        "end_measure": end_musical["measure"],
+        "end_beat": end_musical["beat_within_measure"],
         "muted": bool(RPR_GetMediaItemInfo_Value(item, "B_MUTE")),
         "locked": bool(RPR_GetMediaItemInfo_Value(item, "C_LOCK")),
         "selected": bool(RPR_GetMediaItemInfo_Value(item, "B_UISEL"))
