@@ -4,6 +4,7 @@ const SCROLL_STORAGE_KEY = "reaper-mcp-backlog-scroll-position";
 const state = {
   tasks: [],
   refreshing: false,
+  openBugPanels: new Set(),
   filters: {
     search: "",
     status: "all",
@@ -110,10 +111,18 @@ function createTaskCard(task) {
   }
 
   if (task.bugs?.length) {
-    const bugs = document.createElement("section");
+    const bugs = document.createElement("details");
     bugs.className = "bugs";
+    bugs.open = state.openBugPanels.has(task.id);
+    bugs.addEventListener("toggle", () => {
+      if (bugs.open) {
+        state.openBugPanels.add(task.id);
+      } else {
+        state.openBugPanels.delete(task.id);
+      }
+    });
 
-    const heading = document.createElement("h4");
+    const heading = document.createElement("summary");
     heading.textContent = `Bugs (${task.bugs.length})`;
     bugs.append(heading);
 
