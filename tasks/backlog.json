@@ -582,7 +582,7 @@
       "id": "RO-017",
       "category": "read-only",
       "title": "Get MIDI notes",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "get_midi_notes",
       "description": "Return note events for one validated MIDI take.",
