@@ -488,7 +488,7 @@
           "description": "get_track_items does not accept a track_index and returns items for every track instead of only the requested track.",
           "status": "fixed",
           "discovered_during": "runtime-validation",
-          "fixed_in": null
+          "fixed_in": "e3e3cf66adb7e685fee389e74160066d380514d6"
         }
       ]
     },
