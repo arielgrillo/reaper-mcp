@@ -907,6 +907,23 @@
         "Runtime-test complete replacement, event clearing, empty replacement, validation safety, target errors, item preservation, and visual MIDI-editor behavior against REAPER."
       ],
       "bugs": []
+    },
+    {
+      "id": "TL-015",
+      "category": "tooling",
+      "title": "Current implementation README reference",
+      "status": "testing",
+      "priority": "medium",
+      "description": "Turn README.md into the maintainable user and developer reference for the implemented MCP surface, setup, architecture, contracts, safety, and workflow.",
+      "depends_on": ["TL-003", "TL-005", "WR-009"],
+      "acceptance_criteria": [
+        "Document the current setup, runtime architecture, requirements, developer scripts, backlog, safety guarantees, and meaningful limitations from repository evidence.",
+        "Document every MCP tool exposed by src/reaper_mcp/server.py exactly once with its actual signature, mode, semantics, response summary, and compact request example.",
+        "Document the current note-item, MIDI creation, and destructive MIDI replacement contracts with valid examples.",
+        "Persist a repository-wide README maintenance rule in AGENTS.md that treats implementation as the source of truth.",
+        "Validate tool coverage and signatures programmatically and pass the repository markdownlint workflow."
+      ],
+      "bugs": []
     }
   ]
 }

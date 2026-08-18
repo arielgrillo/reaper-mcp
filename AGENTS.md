@@ -370,6 +370,49 @@ When implementing a new capability:
 
 Do not rewrite working sections merely to make them stylistically different.
 
+### README Maintenance
+
+`README.md` is the primary user/developer reference for the current implemented
+MCP surface.
+
+Treat the implementation as the source of truth.
+
+Whenever a task adds, removes, renames, or materially changes any of the
+following:
+
+* an MCP tool;
+* a public input or output contract;
+* setup or runtime requirements;
+* developer startup/deployment scripts;
+* externally visible architecture;
+* safety or mutation semantics;
+* a meaningful current limitation;
+
+update `README.md` as part of the same task.
+
+Do not update `README.md` for internal refactors that do not change documented behavior.
+
+When updating the README:
+
+* inspect the current implementation before documenting behavior;
+* document only capabilities that actually exist;
+* do not present pending backlog tasks as implemented features;
+* keep tool names, signatures, indexing conventions, and examples synchronized
+  with code;
+* preserve the distinction between raw REAPER values and human-readable derived
+  values where relevant;
+* keep examples aligned with the current public contracts;
+* remove or update known limitations when they are resolved.
+
+After substantive README changes, run:
+
+`npx markdownlint-cli2 README.md`
+
+Fix lint issues introduced by the change before considering the task complete.
+
+README maintenance belongs in the same commit as the public behavior change
+that required it whenever practical.
+
 ## Repository Responsibility
 
 Treat this repository as the source of truth for the current implementation.
