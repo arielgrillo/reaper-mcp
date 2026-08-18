@@ -636,7 +636,7 @@
       "id": "RO-020",
       "category": "read-only",
       "title": "Get track channels",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "get_track_channels",
       "description": "Inspect channel-count and channel-related configuration for tracks.",
