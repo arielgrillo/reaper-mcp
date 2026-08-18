@@ -108,6 +108,141 @@
       ]
     },
     {
+      "id": "TL-004",
+      "category": "tooling",
+      "title": "Backlog web visualizer",
+      "status": "completed",
+      "priority": "medium",
+      "capability": "backlog_web_visualizer",
+      "description": "Provide a browser-based dashboard for exploring the repository backlog.",
+      "depends_on": ["TL-002"],
+      "acceptance_criteria": [
+        "Load tasks directly from tasks/backlog.json through a local static web server.",
+        "Show overall progress, summary metrics, task cards, acceptance criteria, and dependencies.",
+        "Support search plus status, category, and priority filters."
+      ]
+    },
+    {
+      "id": "TL-005",
+      "category": "tooling",
+      "title": "Backlog visualizer launcher",
+      "status": "completed",
+      "priority": "medium",
+      "capability": "start_backlog_visualizer",
+      "description": "Launch the existing backlog visualizer with one repository-relative PowerShell command.",
+      "depends_on": ["TL-004"],
+      "acceptance_criteria": [
+        "Derive the repository root from the script location without hardcoded repository paths.",
+        "Start the tasks static server from the correct working directory.",
+        "Print a startup message and propagate a non-zero server exit code."
+      ]
+    },
+    {
+      "id": "TL-006",
+      "category": "tooling",
+      "title": "Backlog bug visualization",
+      "status": "completed",
+      "priority": "medium",
+      "capability": "visualize_backlog_bugs",
+      "description": "Display capability bug history within its corresponding backlog ticket.",
+      "depends_on": ["TL-004"],
+      "acceptance_criteria": [
+        "Render bug IDs, statuses, descriptions, discovery context, and fixing commits when available.",
+        "Use distinct open and fixed bug treatments.",
+        "Include bug content in backlog search results."
+      ]
+    },
+    {
+      "id": "TL-007",
+      "category": "tooling",
+      "title": "Four-column backlog layout",
+      "status": "completed",
+      "priority": "low",
+      "capability": "backlog_four_column_layout",
+      "description": "Use available desktop space more effectively with a four-column task grid.",
+      "depends_on": ["TL-004"],
+      "acceptance_criteria": [
+        "Show four task-card columns on sufficiently wide screens.",
+        "Reduce the grid responsively at tablet and mobile breakpoints.",
+        "Keep task content readable without horizontal overflow."
+      ]
+    },
+    {
+      "id": "TL-008",
+      "category": "tooling",
+      "title": "Backlog auto-refresh",
+      "status": "completed",
+      "priority": "medium",
+      "capability": "backlog_auto_refresh",
+      "description": "Refresh backlog data automatically while the visualizer remains open.",
+      "depends_on": ["TL-004"],
+      "acceptance_criteria": [
+        "Fetch backlog.json periodically without requiring a manual page reload.",
+        "Bypass stale browser caches for refreshed backlog data.",
+        "Prevent overlapping refresh operations."
+      ]
+    },
+    {
+      "id": "TL-009",
+      "category": "tooling",
+      "title": "Backlog scroll preservation",
+      "status": "completed",
+      "priority": "medium",
+      "capability": "backlog_scroll_preservation",
+      "description": "Preserve the user's reading position across automatic and manual page refreshes.",
+      "depends_on": ["TL-008"],
+      "acceptance_criteria": [
+        "Restore the current scroll position after an automatic data refresh.",
+        "Persist and restore scroll position across a manual browser reload.",
+        "Avoid disrupting the active backlog browsing position."
+      ]
+    },
+    {
+      "id": "TL-010",
+      "category": "tooling",
+      "title": "Collapsible backlog bug panels",
+      "status": "completed",
+      "priority": "low",
+      "capability": "collapsible_backlog_bugs",
+      "description": "Allow bug details inside task cards to be expanded only when needed.",
+      "depends_on": ["TL-006"],
+      "acceptance_criteria": [
+        "Render each ticket's bug collection in a collapsible panel.",
+        "Show the bug count in the collapsed panel heading.",
+        "Preserve expanded bug panels during automatic refreshes."
+      ]
+    },
+    {
+      "id": "TL-011",
+      "category": "tooling",
+      "title": "Testing status visualization",
+      "status": "completed",
+      "priority": "medium",
+      "capability": "visualize_testing_status",
+      "description": "Represent the backlog testing state consistently throughout the visualizer.",
+      "depends_on": ["TL-004"],
+      "acceptance_criteria": [
+        "Use a testing color distinct from completed and pending statuses.",
+        "Show a testing-ticket count with matching color in the summary panel.",
+        "Include testing in the status filter and calculate pending independently."
+      ]
+    },
+    {
+      "id": "TL-012",
+      "category": "tooling",
+      "title": "Backlog filter alignment",
+      "status": "completed",
+      "priority": "low",
+      "capability": "align_backlog_filters",
+      "description": "Align the backlog search field consistently with the other filter controls.",
+      "depends_on": ["TL-004"],
+      "acceptance_criteria": [
+        "Give the search control a visible label consistent with the select controls.",
+        "Align search and filter control tops and heights.",
+        "Preserve accessible labels for all toolbar controls."
+      ]
+    },
+    {
       "id": "DX-001",
       "category": "diagnostic",
       "title": "MCP connectivity ping",
