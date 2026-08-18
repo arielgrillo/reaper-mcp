@@ -472,7 +472,7 @@
       "id": "RO-012",
       "category": "read-only",
       "title": "Get track items",
-      "status": "testing",
+      "status": "completed",
       "priority": "high",
       "capability": "get_track_items",
       "description": "Return media items for one validated project track.",
