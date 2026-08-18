@@ -190,6 +190,12 @@ powershell -ExecutionPolicy Bypass -File scripts/start_mcp_inspector.ps1
 
 Inspector remains responsible for starting the configured stdio MCP server.
 
+Launch the backlog visualizer from the repository root with:
+
+```text
+powershell -ExecutionPolicy Bypass -File scripts/start_backlog_visualizer.ps1
+```
+
 ## REAPER ReaScript Environment
 
 Files under `reaper/` run inside REAPER.
