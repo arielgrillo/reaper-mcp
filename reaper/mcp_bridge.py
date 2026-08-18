@@ -4,6 +4,7 @@ import socket
 import json
 import math
 import re
+import uuid
 
 HOST = "127.0.0.1"
 PORT = 8765
@@ -467,6 +468,59 @@ def get_item_state(item, item_index):
         "locked": bool(RPR_GetMediaItemInfo_Value(item, "C_LOCK")),
         "selected": bool(RPR_GetMediaItemInfo_Value(item, "B_UISEL"))
     }
+
+def get_measure_boundary(measure):
+    return RPR_TimeMap_GetMeasureInfo(
+        0, measure - 1, 0.0, 0.0, 0, 0, 0.0
+    )[0]
+
+def get_item_conflicts(track, position_seconds, end_seconds):
+    conflicts = []
+
+    for reaper_item_index in range(RPR_CountTrackMediaItems(track)):
+        existing_item = RPR_GetTrackMediaItem(track, reaper_item_index)
+        existing = get_item_state(existing_item, reaper_item_index + 1)
+
+        if (
+            position_seconds < existing["end_seconds"]
+            and end_seconds > existing["position_seconds"]
+        ):
+            conflicts.append({
+                "item_index": existing["item_index"],
+                "item_guid": existing["guid"],
+                "position_seconds": existing["position_seconds"],
+                "end_seconds": existing["end_seconds"],
+                "start_measure": existing["start_measure"],
+                "start_beat": existing["start_beat"],
+                "end_measure": existing["end_measure"],
+                "end_beat": existing["end_beat"]
+            })
+
+    return conflicts
+
+def find_item_index(track, item_guid):
+    for reaper_item_index in range(RPR_CountTrackMediaItems(track)):
+        candidate = RPR_GetTrackMediaItem(track, reaper_item_index)
+
+        if get_item_identity(candidate) == item_guid:
+            return reaper_item_index + 1
+
+    return None
+
+def find_item_by_guid(track, item_guid):
+    for reaper_item_index in range(RPR_CountTrackMediaItems(track)):
+        candidate = RPR_GetTrackMediaItem(track, reaper_item_index)
+
+        if get_item_identity(candidate) == item_guid:
+            return candidate
+
+    return None
+
+def delete_created_item(track, item, item_guid):
+    deleted = RPR_DeleteTrackMediaItem(track, item)
+    RPR_UpdateArrange()
+
+    return bool(deleted) and find_item_index(track, item_guid) is None
 
 def get_take_source_type(take):
     source = RPR_GetMediaItemTake_Source(take)
@@ -1992,14 +2046,10 @@ def handle_create_note_item(request):
     if not isinstance(text, str) or not text.strip():
         return {"error": "text must be a non-empty string"}
 
-    start_measure_index = start_measure - 1
-    end_measure_index = start_measure_index + duration_measures
-    position_seconds = RPR_TimeMap_GetMeasureInfo(
-        0, start_measure_index, 0.0, 0.0, 0, 0, 0.0
-    )[0]
-    end_seconds = RPR_TimeMap_GetMeasureInfo(
-        0, end_measure_index, 0.0, 0.0, 0, 0, 0.0
-    )[0]
+    position_seconds = get_measure_boundary(start_measure)
+    end_seconds = get_measure_boundary(
+        start_measure + duration_measures
+    )
     duration_seconds = end_seconds - position_seconds
 
     if (
@@ -2011,32 +2061,9 @@ def handle_create_note_item(request):
             "error": "REAPER returned invalid measure boundary positions"
         }
 
-    conflicts = []
-
-    for reaper_item_index in range(
-        RPR_CountTrackMediaItems(context["track"])
-    ):
-        existing_item = RPR_GetTrackMediaItem(
-            context["track"], reaper_item_index
-        )
-        existing = get_item_state(
-            existing_item, reaper_item_index + 1
-        )
-
-        if (
-            position_seconds < existing["end_seconds"]
-            and end_seconds > existing["position_seconds"]
-        ):
-            conflicts.append({
-                "item_index": existing["item_index"],
-                "item_guid": existing["guid"],
-                "position_seconds": existing["position_seconds"],
-                "end_seconds": existing["end_seconds"],
-                "start_measure": existing["start_measure"],
-                "start_beat": existing["start_beat"],
-                "end_measure": existing["end_measure"],
-                "end_beat": existing["end_beat"]
-            })
+    conflicts = get_item_conflicts(
+        context["track"], position_seconds, end_seconds
+    )
 
     if conflicts:
         return {
@@ -2072,18 +2099,7 @@ def handle_create_note_item(request):
         return {"error": "REAPER failed to initialize the note item"}
 
     item_guid = get_item_identity(item)
-    item_index = None
-
-    for reaper_item_index in range(
-        RPR_CountTrackMediaItems(context["track"])
-    ):
-        candidate = RPR_GetTrackMediaItem(
-            context["track"], reaper_item_index
-        )
-
-        if get_item_identity(candidate) == item_guid:
-            item_index = reaper_item_index + 1
-            break
+    item_index = find_item_index(context["track"], item_guid)
 
     applied_position = RPR_GetMediaItemInfo_Value(item, "D_POSITION")
     applied_duration = RPR_GetMediaItemInfo_Value(item, "D_LENGTH")
@@ -2123,6 +2139,359 @@ def handle_create_note_item(request):
         "take_count": take_count,
         "success": success
     }
+
+def handle_create_midi_item(request):
+    context, error = resolve_track(request)
+
+    if error is not None:
+        return error
+
+    start_measure = request.get("start_measure")
+    end_measure = request.get("end_measure")
+    requested_notes = request.get("notes")
+
+    if (
+        not isinstance(start_measure, int)
+        or isinstance(start_measure, bool)
+        or start_measure < 1
+    ):
+        return {"error": "start_measure must be a 1-based positive integer"}
+
+    if (
+        not isinstance(end_measure, int)
+        or isinstance(end_measure, bool)
+        or end_measure <= start_measure
+    ):
+        return {
+            "error": "end_measure must be an integer greater than start_measure"
+        }
+
+    if not isinstance(requested_notes, list) or not requested_notes:
+        return {"error": "notes must be a non-empty list"}
+
+    validated_notes = []
+
+    for note_index, note in enumerate(requested_notes, start=1):
+        if not isinstance(note, dict):
+            return {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "message": "each note must be an object"
+            }
+
+        pitch = note.get("pitch")
+        velocity = note.get("velocity")
+        duration_qn = note.get("duration_qn")
+
+        if (
+            not isinstance(pitch, int)
+            or isinstance(pitch, bool)
+            or pitch < 0
+            or pitch > 127
+        ):
+            return {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "pitch",
+                "message": "pitch must be an integer from 0 through 127"
+            }
+
+        if (
+            not isinstance(velocity, int)
+            or isinstance(velocity, bool)
+            or velocity < 1
+            or velocity > 127
+        ):
+            return {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "velocity",
+                "message": "velocity must be an integer from 1 through 127"
+            }
+
+        if (
+            not isinstance(duration_qn, (int, float))
+            or isinstance(duration_qn, bool)
+            or not math.isfinite(duration_qn)
+            or duration_qn <= 0
+        ):
+            return {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "duration_qn",
+                "message": "duration_qn must be a finite positive number"
+            }
+
+        validated_notes.append({
+            "pitch": pitch,
+            "velocity": velocity,
+            "duration_qn": float(duration_qn)
+        })
+
+    position_seconds = get_measure_boundary(start_measure)
+    end_seconds = get_measure_boundary(end_measure)
+    duration_seconds = end_seconds - position_seconds
+
+    if (
+        not math.isfinite(position_seconds)
+        or not math.isfinite(end_seconds)
+        or duration_seconds <= 0.0
+    ):
+        return {
+            "error": "REAPER returned invalid measure boundary positions"
+        }
+
+    start_qn = RPR_TimeMap2_timeToQN(0, position_seconds)
+    end_qn = RPR_TimeMap2_timeToQN(0, end_seconds)
+    available_duration_qn = end_qn - start_qn
+    required_duration_qn = math.fsum(
+        note["duration_qn"] for note in validated_notes
+    )
+
+    if (
+        not math.isfinite(start_qn)
+        or not math.isfinite(end_qn)
+        or available_duration_qn <= 0.0
+    ):
+        return {"error": "REAPER returned an invalid musical item duration"}
+
+    if required_duration_qn > available_duration_qn + 1e-9:
+        return {
+            "error": "midi_content_exceeds_item",
+            "available_duration_qn": available_duration_qn,
+            "required_duration_qn": required_duration_qn
+        }
+
+    conflicts = get_item_conflicts(
+        context["track"], position_seconds, end_seconds
+    )
+
+    if conflicts:
+        return {
+            "error": "item_overlap",
+            "requested_range": {
+                "start_measure": start_measure,
+                "end_measure": end_measure,
+                "position_seconds": position_seconds,
+                "end_seconds": end_seconds,
+                "duration_seconds": duration_seconds
+            },
+            "conflicts": conflicts
+        }
+
+    item = None
+
+    try:
+        item = RPR_AddMediaItemToTrack(context["track"])
+
+        if not item:
+            return {"error": "REAPER failed to create the MIDI item"}
+
+        item_guid = get_item_identity(item)
+        take_guid = "{" + str(uuid.uuid4()).upper() + "}"
+        source_guid = "{" + str(uuid.uuid4()).upper() + "}"
+        source_end_ppq = int(round(available_duration_qn * 960))
+        # Initialize only the in-project MIDI container here. Note timing is
+        # converted and inserted below through REAPER's QN/PPQ APIs.
+        item_chunk = "\n".join([
+            "<ITEM",
+            f"POSITION {position_seconds:.17g}",
+            "SNAPOFFS 0",
+            f"LENGTH {duration_seconds:.17g}",
+            "LOOP 0",
+            "ALLTAKES 0",
+            "FADEIN 1 0 0 1 0 0 0",
+            "FADEOUT 1 0 0 1 0 0 0",
+            "MUTE 0 0",
+            "SEL 0",
+            f"IGUID {item_guid}",
+            "IID -1",
+            'NAME ""',
+            "VOLPAN 1 0 1 -1",
+            "SOFFS 0 0",
+            "PLAYRATE 1 1 0 -1 0 0.0025",
+            "CHANMODE 0",
+            f"GUID {take_guid}",
+            "<SOURCE MIDI",
+            "HASDATA 1 960 QN",
+            "CCINTERP 32",
+            f"E {source_end_ppq} b0 7b 00",
+            f"GUID {source_guid}",
+            ">",
+            ">"
+        ])
+
+        if not RPR_SetItemStateChunk(item, item_chunk, False):
+            raise RuntimeError("REAPER failed to initialize MIDI item state")
+
+        take = RPR_GetTake(item, 0)
+
+        if not take or not RPR_TakeIsMIDI(take):
+            raise RuntimeError("REAPER failed to initialize the MIDI take")
+
+        current_qn = start_qn
+
+        for note in validated_notes:
+            note_end_qn = current_qn + note["duration_qn"]
+
+            if not RPR_MIDI_InsertNote(
+                take,
+                False,
+                False,
+                RPR_MIDI_GetPPQPosFromProjQN(take, current_qn),
+                RPR_MIDI_GetPPQPosFromProjQN(take, note_end_qn),
+                0,
+                note["pitch"],
+                note["velocity"],
+                True
+            ):
+                raise RuntimeError("REAPER failed to insert a MIDI note")
+
+            current_qn = note_end_qn
+
+        RPR_MIDI_Sort(take)
+        RPR_UpdateArrange()
+        return finalize_create_midi_item({
+            "item_guid": item_guid,
+            "start_measure": start_measure,
+            "end_measure": end_measure,
+            "position_seconds": position_seconds,
+            "end_seconds": end_seconds,
+            "required_duration_qn": required_duration_qn,
+            "available_duration_qn": available_duration_qn,
+            "validated_notes": validated_notes
+        }, context)
+    except Exception as creation_error:
+        cleanup_succeeded = True
+
+        if item:
+            cleanup_succeeded = delete_created_item(
+                context["track"], item, get_item_identity(item)
+            )
+
+        return {
+            "error": "midi_item_creation_failed",
+            "message": str(creation_error),
+            "cleanup_succeeded": cleanup_succeeded
+        }
+
+def finalize_create_midi_item(operation, context):
+    item = find_item_by_guid(context["track"], operation["item_guid"])
+    take = RPR_GetTake(item, 0) if item else None
+
+    try:
+        if not item or not take:
+            raise RuntimeError("REAPER did not materialize the MIDI item")
+
+        item_index = find_item_index(context["track"], operation["item_guid"])
+        applied_position = RPR_GetMediaItemInfo_Value(item, "D_POSITION")
+        applied_duration = RPR_GetMediaItemInfo_Value(item, "D_LENGTH")
+        applied_end = applied_position + applied_duration
+        counts = RPR_MIDI_CountEvts(take, 0, 0, 0)
+        created_notes = []
+        notes_match = counts[2] == len(operation["validated_notes"])
+
+        for reaper_note_index in range(counts[2]):
+            note_info = RPR_MIDI_GetNote(
+                take, reaper_note_index,
+                False, False, 0.0, 0.0, 0, 0, 0
+            )
+
+            if not note_info[0]:
+                notes_match = False
+                continue
+
+            note_start_qn = RPR_MIDI_GetProjQNFromPPQPos(
+                take, note_info[5]
+            )
+            note_end_qn = RPR_MIDI_GetProjQNFromPPQPos(
+                take, note_info[6]
+            )
+            created_notes.append({
+                "note_index": reaper_note_index + 1,
+                "pitch": note_info[8],
+                "note_name": get_midi_note_name(note_info[8]),
+                "velocity": note_info[9],
+                "duration_qn": round(note_end_qn - note_start_qn, 10),
+                "start_ppq": note_info[5],
+                "end_ppq": note_info[6]
+            })
+
+            expected = operation["validated_notes"][reaper_note_index]
+            notes_match = notes_match and (
+                note_info[8] == expected["pitch"]
+                and note_info[9] == expected["velocity"]
+                and math.isclose(
+                    note_end_qn - note_start_qn,
+                    expected["duration_qn"],
+                    rel_tol=1e-9,
+                    abs_tol=1e-9
+                )
+            )
+
+        success = (
+            item_index is not None
+            and bool(operation["item_guid"])
+            and RPR_TakeIsMIDI(take)
+            and notes_match
+            and math.isclose(
+                applied_position, operation["position_seconds"],
+                rel_tol=1e-9, abs_tol=1e-9
+            )
+            and math.isclose(
+                applied_end, operation["end_seconds"],
+                rel_tol=1e-9, abs_tol=1e-9
+            )
+        )
+
+        if not success:
+            raise RuntimeError(
+                "MIDI item read-back verification failed: "
+                + json.dumps({
+                    "item_index": item_index,
+                    "item_guid": operation["item_guid"],
+                    "take_is_midi": bool(RPR_TakeIsMIDI(take)),
+                    "note_count": counts[2],
+                    "expected_note_count": len(operation["validated_notes"]),
+                    "notes_match": notes_match,
+                    "applied_position": applied_position,
+                    "expected_position": operation["position_seconds"],
+                    "applied_end": applied_end,
+                    "expected_end": operation["end_seconds"]
+                })
+            )
+
+        return {
+            "track_index": context["track_index"],
+            "track_name": context["track_name"],
+            "item_index": item_index,
+            "item_guid": operation["item_guid"],
+            "start_measure": operation["start_measure"],
+            "end_measure": operation["end_measure"],
+            "position_seconds": applied_position,
+            "end_seconds": applied_end,
+            "duration_seconds": applied_duration,
+            "note_count": len(created_notes),
+            "required_duration_qn": operation["required_duration_qn"],
+            "available_duration_qn": operation["available_duration_qn"],
+            "notes": created_notes,
+            "success": True
+        }
+    except Exception as readback_error:
+        cleanup_succeeded = (
+            delete_created_item(
+                context["track"], item, operation["item_guid"]
+            )
+            if item
+            else find_item_index(
+                context["track"], operation["item_guid"]
+            ) is None
+        )
+        return {
+            "error": "midi_item_creation_failed",
+            "message": str(readback_error),
+            "cleanup_succeeded": cleanup_succeeded
+        }
 
 def handle_get_fx_presets(request):
     fx_context, error = resolve_track_fx(request)
@@ -2211,6 +2580,7 @@ COMMAND_HANDLERS = {
     "set_track_mute": handle_set_track_mute,
     "set_track_solo": handle_set_track_solo,
     "create_note_item": handle_create_note_item,
+    "create_midi_item": handle_create_midi_item,
 }
 
 loop()
