@@ -316,7 +316,16 @@ def handle_get_tracks(request):
             "is_folder": folder_depth > 0,
             "is_nested": parent_index is not None,
             "parent_index": parent_index,
-            "parent_name": parent_name
+            "parent_name": parent_name,
+            "record_armed": bool(RPR_GetMediaTrackInfo_Value(
+                track, "I_RECARM"
+            )),
+            "record_input_raw": int(RPR_GetMediaTrackInfo_Value(
+                track, "I_RECINPUT"
+            )),
+            "record_monitoring_raw": int(RPR_GetMediaTrackInfo_Value(
+                track, "I_RECMON"
+            ))
         })
 
         if folder_depth > 0:
@@ -344,6 +353,109 @@ def get_track_identity(track):
     track_name_info = RPR_GetTrackName(track, "", 512)
 
     return track_index, track_name_info[2]
+
+def resolve_track(request):
+    track_index = request.get("track_index")
+
+    if not isinstance(track_index, int) or isinstance(track_index, bool):
+        return None, {"error": "track_index must be a 1-based integer"}
+
+    track_count = RPR_CountTracks(0)
+
+    if track_index < 1 or track_index > track_count:
+        return None, {
+            "error": (
+                f"Track index {track_index} is out of range; "
+                f"project has {track_count} tracks"
+            )
+        }
+
+    track = RPR_GetTrack(0, track_index - 1)
+    _, track_name = get_track_identity(track)
+
+    return {
+        "track": track,
+        "track_index": track_index,
+        "track_name": track_name
+    }, None
+
+def resolve_item(request):
+    context, error = resolve_track(request)
+
+    if error is not None:
+        return None, error
+
+    item_index = request.get("item_index")
+
+    if not isinstance(item_index, int) or isinstance(item_index, bool):
+        return None, {"error": "item_index must be a 1-based integer"}
+
+    item_count = RPR_CountTrackMediaItems(context["track"])
+
+    if item_index < 1 or item_index > item_count:
+        return None, {
+            "error": (
+                f"Item index {item_index} is out of range; track "
+                f"{context['track_index']} has {item_count} items"
+            )
+        }
+
+    context["item_index"] = item_index
+    context["item"] = RPR_GetTrackMediaItem(
+        context["track"], item_index - 1
+    )
+    return context, None
+
+def resolve_take(request):
+    context, error = resolve_item(request)
+
+    if error is not None:
+        return None, error
+
+    take_index = request.get("take_index")
+
+    if not isinstance(take_index, int) or isinstance(take_index, bool):
+        return None, {"error": "take_index must be a 1-based integer"}
+
+    take_count = RPR_CountTakes(context["item"])
+
+    if take_index < 1 or take_index > take_count:
+        return None, {
+            "error": (
+                f"Take index {take_index} is out of range; item "
+                f"{context['item_index']} has {take_count} takes"
+            )
+        }
+
+    context["take_index"] = take_index
+    context["take"] = RPR_GetTake(context["item"], take_index - 1)
+    context["take_name"] = RPR_GetTakeName(context["take"])
+    return context, None
+
+def get_item_identity(item):
+    guid_info = RPR_GetSetMediaItemInfo_String(
+        item, "GUID", "", False
+    )
+    return guid_info[3]
+
+def get_item_state(item, item_index):
+    position = RPR_GetMediaItemInfo_Value(item, "D_POSITION")
+    duration = RPR_GetMediaItemInfo_Value(item, "D_LENGTH")
+
+    return {
+        "item_index": item_index,
+        "guid": get_item_identity(item),
+        "position_seconds": position,
+        "end_seconds": position + duration,
+        "duration_seconds": duration,
+        "muted": bool(RPR_GetMediaItemInfo_Value(item, "B_MUTE")),
+        "locked": bool(RPR_GetMediaItemInfo_Value(item, "C_LOCK")),
+        "selected": bool(RPR_GetMediaItemInfo_Value(item, "B_UISEL"))
+    }
+
+def get_take_source_type(take):
+    source = RPR_GetMediaItemTake_Source(take)
+    return RPR_GetMediaSourceType(source, "", 128)[1]
 
 def find_track_index_by_name(track_name):
     matching_indexes = []
@@ -551,6 +663,428 @@ def handle_get_track_routing(request):
         "track_index": track_index,
         "track_name": track_name,
         **routing
+    }
+
+def handle_get_track_items(request):
+    tracks = []
+
+    for reaper_track_index in range(RPR_CountTracks(0)):
+        track = RPR_GetTrack(0, reaper_track_index)
+        track_index, track_name = get_track_identity(track)
+        item_count = RPR_CountTrackMediaItems(track)
+        items = [
+            get_item_state(
+                RPR_GetTrackMediaItem(track, item_index),
+                item_index + 1
+            )
+            for item_index in range(item_count)
+        ]
+        tracks.append({
+            "track_index": track_index,
+            "track_name": track_name,
+            "item_count": item_count,
+            "items": items
+        })
+
+    return {"tracks": tracks}
+
+def handle_get_selected_tracks(request):
+    selected_tracks = []
+
+    for selected_index in range(RPR_CountSelectedTracks(0)):
+        track = RPR_GetSelectedTrack(0, selected_index)
+        track_index, track_name = get_track_identity(track)
+        selected_tracks.append({
+            "track_index": track_index,
+            "track_name": track_name
+        })
+
+    selected_tracks.sort(key=lambda track: track["track_index"])
+    return {"tracks": selected_tracks}
+
+def handle_get_item_info(request):
+    context, error = resolve_item(request)
+
+    if error is not None:
+        return error
+
+    item = context["item"]
+    item_state = get_item_state(item, context["item_index"])
+    take_count = RPR_CountTakes(item)
+    active_take = RPR_GetActiveTake(item)
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        **item_state,
+        "take_count": take_count,
+        "active_take_name": (
+            RPR_GetTakeName(active_take) if active_take else None
+        ),
+        "active_source_type": (
+            get_take_source_type(active_take) if active_take else None
+        )
+    }
+
+def handle_get_item_takes(request):
+    context, error = resolve_item(request)
+
+    if error is not None:
+        return error
+
+    active_take = RPR_GetActiveTake(context["item"])
+    take_count = RPR_CountTakes(context["item"])
+    takes = []
+
+    for reaper_take_index in range(take_count):
+        take = RPR_GetTake(context["item"], reaper_take_index)
+        takes.append({
+            "take_index": reaper_take_index + 1,
+            "name": RPR_GetTakeName(take),
+            "active": take == active_take,
+            "source_type": get_take_source_type(take)
+        })
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "item_index": context["item_index"],
+        "item_guid": get_item_identity(context["item"]),
+        "take_count": take_count,
+        "takes": takes
+    }
+
+def require_midi_take(request):
+    context, error = resolve_take(request)
+
+    if error is not None:
+        return None, error
+
+    if not RPR_TakeIsMIDI(context["take"]):
+        return None, {
+            "error": (
+                f"Take {context['take_index']} on item "
+                f"{context['item_index']} is not MIDI"
+            )
+        }
+
+    return context, None
+
+def handle_get_midi_summary(request):
+    context, error = require_midi_take(request)
+
+    if error is not None:
+        return error
+
+    counts = RPR_MIDI_CountEvts(context["take"], 0, 0, 0)
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "item_index": context["item_index"],
+        "take_index": context["take_index"],
+        "take_name": context["take_name"],
+        "note_count": counts[2],
+        "control_change_count": counts[3],
+        "text_sysex_count": counts[4]
+    }
+
+def handle_get_midi_notes(request):
+    context, error = require_midi_take(request)
+
+    if error is not None:
+        return error
+
+    counts = RPR_MIDI_CountEvts(context["take"], 0, 0, 0)
+    notes = []
+
+    for reaper_note_index in range(counts[2]):
+        note = RPR_MIDI_GetNote(
+            context["take"], reaper_note_index,
+            False, False, 0.0, 0.0, 0, 0, 0
+        )
+
+        if not note[0]:
+            continue
+
+        start_seconds = RPR_MIDI_GetProjTimeFromPPQPos(
+            context["take"], note[5]
+        )
+        end_seconds = RPR_MIDI_GetProjTimeFromPPQPos(
+            context["take"], note[6]
+        )
+        start_musical = get_musical_position(start_seconds)
+        end_musical = get_musical_position(end_seconds)
+        notes.append({
+            "note_index": reaper_note_index + 1,
+            "selected": bool(note[3]),
+            "muted": bool(note[4]),
+            "start_ppq": note[5],
+            "end_ppq": note[6],
+            "start_seconds": start_seconds,
+            "end_seconds": end_seconds,
+            "duration_seconds": end_seconds - start_seconds,
+            "channel": note[7] + 1,
+            "pitch": note[8],
+            "velocity": note[9],
+            "start_musical_position": start_musical["musical_position"],
+            "end_musical_position": end_musical["musical_position"]
+        })
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "item_index": context["item_index"],
+        "take_index": context["take_index"],
+        "take_name": context["take_name"],
+        "note_count": len(notes),
+        "notes": notes
+    }
+
+def get_envelope_metadata(envelope, envelope_index):
+    return {
+        "envelope_index": envelope_index,
+        "name": RPR_GetEnvelopeName(envelope, "", 512)[2],
+        "visible": bool(RPR_GetEnvelopeInfo_Value(
+            envelope, "B_VISIBLE"
+        )),
+        "armed": bool(RPR_GetEnvelopeInfo_Value(envelope, "B_ARM")),
+        "active": bool(RPR_GetEnvelopeInfo_Value(
+            envelope, "B_ACTIVE"
+        )),
+        "scaling_mode_raw": RPR_GetEnvelopeScalingMode(envelope),
+        "point_count": RPR_CountEnvelopePoints(envelope)
+    }
+
+def handle_get_track_envelopes(request):
+    tracks = []
+
+    for reaper_track_index in range(RPR_CountTracks(0)):
+        track = RPR_GetTrack(0, reaper_track_index)
+        track_index, track_name = get_track_identity(track)
+        envelope_count = RPR_CountTrackEnvelopes(track)
+        envelopes = [
+            get_envelope_metadata(
+                RPR_GetTrackEnvelope(track, envelope_index),
+                envelope_index + 1
+            )
+            for envelope_index in range(envelope_count)
+        ]
+        tracks.append({
+            "track_index": track_index,
+            "track_name": track_name,
+            "envelope_count": envelope_count,
+            "envelopes": envelopes
+        })
+
+    return {"tracks": tracks}
+
+def resolve_track_envelope(request):
+    context, error = resolve_track(request)
+
+    if error is not None:
+        return None, error
+
+    envelope_index = request.get("envelope_index")
+
+    if (
+        not isinstance(envelope_index, int)
+        or isinstance(envelope_index, bool)
+    ):
+        return None, {
+            "error": "envelope_index must be a 1-based integer"
+        }
+
+    envelope_count = RPR_CountTrackEnvelopes(context["track"])
+
+    if envelope_index < 1 or envelope_index > envelope_count:
+        return None, {
+            "error": (
+                f"Envelope index {envelope_index} is out of range; "
+                f"track {context['track_index']} has "
+                f"{envelope_count} envelopes"
+            )
+        }
+
+    context["envelope_index"] = envelope_index
+    context["envelope"] = RPR_GetTrackEnvelope(
+        context["track"], envelope_index - 1
+    )
+    return context, None
+
+def handle_get_envelope_points(request):
+    context, error = resolve_track_envelope(request)
+
+    if error is not None:
+        return error
+
+    envelope = context["envelope"]
+    point_count = RPR_CountEnvelopePoints(envelope)
+    points = []
+
+    for reaper_point_index in range(point_count):
+        point = RPR_GetEnvelopePoint(
+            envelope, reaper_point_index,
+            0.0, 0.0, 0, 0.0, False
+        )
+
+        if point[0]:
+            points.append({
+                "point_index": reaper_point_index + 1,
+                "time_seconds": point[3],
+                "value_raw": point[4],
+                "shape_raw": point[5],
+                "tension": point[6],
+                "selected": bool(point[7])
+            })
+
+    metadata = get_envelope_metadata(
+        envelope, context["envelope_index"]
+    )
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        **metadata,
+        "points": points
+    }
+
+def handle_get_track_channels(request):
+    tracks = []
+
+    for reaper_track_index in range(RPR_CountTracks(0)):
+        track = RPR_GetTrack(0, reaper_track_index)
+        track_index, track_name = get_track_identity(track)
+        tracks.append({
+            "track_index": track_index,
+            "track_name": track_name,
+            "channel_count": int(RPR_GetMediaTrackInfo_Value(
+                track, "I_NCHAN"
+            )),
+            "midi_hardware_output_raw": int(
+                RPR_GetMediaTrackInfo_Value(track, "I_MIDIHWOUT")
+            )
+        })
+
+    return {"tracks": tracks}
+
+def handle_get_master_track(request):
+    track = RPR_GetMasterTrack(0)
+    reaper_track_number, track_name = get_track_identity(track)
+    volume = RPR_GetMediaTrackInfo_Value(track, "D_VOL")
+    volume_db = linear_to_db(volume)
+    pan_info = get_pan_info(RPR_GetMediaTrackInfo_Value(track, "D_PAN"))
+
+    return {
+        "track_index": 0,
+        "reaper_track_number": reaper_track_number,
+        "track_name": track_name,
+        "muted": bool(RPR_GetMediaTrackInfo_Value(track, "B_MUTE")),
+        "solo": RPR_GetMediaTrackInfo_Value(track, "I_SOLO") > 0,
+        "volume": volume,
+        "volume_db": round(volume_db, 2) if volume_db is not None else None,
+        **pan_info,
+        "channel_count": int(RPR_GetMediaTrackInfo_Value(
+            track, "I_NCHAN"
+        ))
+    }
+
+def handle_get_master_fx(request):
+    track = RPR_GetMasterTrack(0)
+    reaper_track_number, track_name = get_track_identity(track)
+    fx_count = RPR_TrackFX_GetCount(track)
+    fx = []
+
+    for reaper_fx_index in range(fx_count):
+        fx.append({
+            "index": reaper_fx_index + 1,
+            "name": RPR_TrackFX_GetFXName(
+                track, reaper_fx_index, "", 512
+            )[3],
+            "enabled": bool(RPR_TrackFX_GetEnabled(
+                track, reaper_fx_index
+            )),
+            "offline": bool(RPR_TrackFX_GetOffline(
+                track, reaper_fx_index
+            ))
+        })
+
+    return {
+        "track_index": 0,
+        "reaper_track_number": reaper_track_number,
+        "track_name": track_name,
+        "fx_count": fx_count,
+        "fx": fx
+    }
+
+def handle_get_project_time_selection(request):
+    selection = RPR_GetSet_LoopTimeRange2(
+        0, False, False, 0.0, 0.0, False
+    )
+    start_seconds = selection[3]
+    end_seconds = selection[4]
+    has_selection = end_seconds > start_seconds
+
+    return {
+        "has_time_selection": has_selection,
+        "start_seconds": start_seconds,
+        "end_seconds": end_seconds,
+        "duration_seconds": end_seconds - start_seconds,
+        "start_musical_position": (
+            get_musical_position(start_seconds)["musical_position"]
+            if has_selection else None
+        ),
+        "end_musical_position": (
+            get_musical_position(end_seconds)["musical_position"]
+            if has_selection else None
+        )
+    }
+
+def handle_get_cursor_position(request):
+    position_seconds = RPR_GetCursorPositionEx(0)
+    musical = get_musical_position(position_seconds)
+    return {
+        "position_seconds": position_seconds,
+        "position_beats": musical["position_beats"],
+        "musical_position": musical["musical_position"]
+    }
+
+def handle_get_current_context(request):
+    return {
+        "selected_tracks": handle_get_selected_tracks(request)["tracks"],
+        "cursor": handle_get_cursor_position(request),
+        "time_selection": handle_get_project_time_selection(request)
+    }
+
+def handle_get_take_fx(request):
+    context, error = resolve_take(request)
+
+    if error is not None:
+        return error
+
+    fx_count = RPR_TakeFX_GetCount(context["take"])
+    fx = []
+
+    for reaper_fx_index in range(fx_count):
+        fx.append({
+            "index": reaper_fx_index + 1,
+            "name": RPR_TakeFX_GetFXName(
+                context["take"], reaper_fx_index, "", 512
+            )[3],
+            "enabled": bool(RPR_TakeFX_GetEnabled(
+                context["take"], reaper_fx_index
+            )),
+            "offline": bool(RPR_TakeFX_GetOffline(
+                context["take"], reaper_fx_index
+            ))
+        })
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "item_index": context["item_index"],
+        "take_index": context["take_index"],
+        "take_name": context["take_name"],
+        "fx_count": fx_count,
+        "fx": fx
     }
 
 def handle_get_track_fx(request):
@@ -1225,6 +1759,21 @@ COMMAND_HANDLERS = {
     "get_markers_regions": handle_get_markers_regions,
     "get_tracks": handle_get_tracks,
     "get_track_routing": handle_get_track_routing,
+    "get_track_items": handle_get_track_items,
+    "get_selected_tracks": handle_get_selected_tracks,
+    "get_item_info": handle_get_item_info,
+    "get_item_takes": handle_get_item_takes,
+    "get_midi_summary": handle_get_midi_summary,
+    "get_midi_notes": handle_get_midi_notes,
+    "get_track_envelopes": handle_get_track_envelopes,
+    "get_envelope_points": handle_get_envelope_points,
+    "get_track_channels": handle_get_track_channels,
+    "get_master_track": handle_get_master_track,
+    "get_master_fx": handle_get_master_fx,
+    "get_project_time_selection": handle_get_project_time_selection,
+    "get_cursor_position": handle_get_cursor_position,
+    "get_current_context": handle_get_current_context,
+    "get_take_fx": handle_get_take_fx,
     "get_track_fx": handle_get_track_fx,
     "get_fx_parameters": handle_get_fx_parameters,
     "get_fx_parameter": handle_get_fx_parameter,

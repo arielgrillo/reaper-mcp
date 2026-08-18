@@ -52,6 +52,110 @@ def get_track_routing(track_index: int) -> dict:
     )
 
 @mcp.tool()
+def get_track_items() -> dict:
+    """Return media items grouped by track."""
+    return send_reaper_command("get_track_items")
+
+@mcp.tool()
+def get_selected_tracks() -> dict:
+    """Return tracks currently selected in REAPER."""
+    return send_reaper_command("get_selected_tracks")
+
+@mcp.tool()
+def get_item_info(track_index: int, item_index: int) -> dict:
+    """Return information for one media item."""
+    return send_reaper_command(
+        "get_item_info", track_index=track_index, item_index=item_index
+    )
+
+@mcp.tool()
+def get_item_takes(track_index: int, item_index: int) -> dict:
+    """Return takes for one media item."""
+    return send_reaper_command(
+        "get_item_takes", track_index=track_index, item_index=item_index
+    )
+
+@mcp.tool()
+def get_midi_summary(
+    track_index: int, item_index: int, take_index: int
+) -> dict:
+    """Return MIDI event counts for one take."""
+    return send_reaper_command(
+        "get_midi_summary",
+        track_index=track_index,
+        item_index=item_index,
+        take_index=take_index
+    )
+
+@mcp.tool()
+def get_midi_notes(
+    track_index: int, item_index: int, take_index: int
+) -> dict:
+    """Return note events for one MIDI take."""
+    return send_reaper_command(
+        "get_midi_notes",
+        track_index=track_index,
+        item_index=item_index,
+        take_index=take_index
+    )
+
+@mcp.tool()
+def get_track_envelopes() -> dict:
+    """Return automation envelopes grouped by track."""
+    return send_reaper_command("get_track_envelopes")
+
+@mcp.tool()
+def get_envelope_points(track_index: int, envelope_index: int) -> dict:
+    """Return points for one track envelope."""
+    return send_reaper_command(
+        "get_envelope_points",
+        track_index=track_index,
+        envelope_index=envelope_index
+    )
+
+@mcp.tool()
+def get_track_channels() -> dict:
+    """Return channel configuration for project tracks."""
+    return send_reaper_command("get_track_channels")
+
+@mcp.tool()
+def get_master_track() -> dict:
+    """Return mix and channel state for the master track."""
+    return send_reaper_command("get_master_track")
+
+@mcp.tool()
+def get_master_fx() -> dict:
+    """Return the master track FX chain."""
+    return send_reaper_command("get_master_fx")
+
+@mcp.tool()
+def get_project_time_selection() -> dict:
+    """Return the current project time selection."""
+    return send_reaper_command("get_project_time_selection")
+
+@mcp.tool()
+def get_cursor_position() -> dict:
+    """Return the current edit cursor position."""
+    return send_reaper_command("get_cursor_position")
+
+@mcp.tool()
+def get_current_context() -> dict:
+    """Return selected tracks, cursor, and time-selection context."""
+    return send_reaper_command("get_current_context")
+
+@mcp.tool()
+def get_take_fx(
+    track_index: int, item_index: int, take_index: int
+) -> dict:
+    """Return the FX chain for one media-item take."""
+    return send_reaper_command(
+        "get_take_fx",
+        track_index=track_index,
+        item_index=item_index,
+        take_index=take_index
+    )
+
+@mcp.tool()
 def get_markers_regions() -> dict:
     """Return timeline-ordered markers and regions from the current project."""
     return send_reaper_command("get_markers_regions")
