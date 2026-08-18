@@ -272,7 +272,7 @@
       "description": "Return separate marker and region collections from the active project.",
       "depends_on": ["FN-004"],
       "acceptance_criteria": [
-        "Markers and regions are returned in timeline order with enumeration indexes and displayed numbers preserved separately.",
+        "Markers and regions are returned in timeline order with zero-based REAPER enumeration indexes, one-based public indexes, and displayed numbers preserved separately.",
         "Names, colors, seconds, durations, and region boundaries are returned, with empty arrays when none exist.",
         "REAPER's time map supplies accumulated beats, measure, beat within measure, and time-signature context.",
         "The operation does not modify markers or regions."

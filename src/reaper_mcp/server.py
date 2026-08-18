@@ -45,7 +45,7 @@ def get_tracks() -> dict:
 
 @mcp.tool()
 def get_markers_regions() -> dict:
-    """Return all markers and regions from the current REAPER project."""
+    """Return timeline-ordered markers and regions from the current project."""
     return send_reaper_command("get_markers_regions")
 
 @mcp.tool()
