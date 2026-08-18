@@ -545,6 +545,42 @@ def delete_created_item(track, item, item_guid):
 
     return bool(deleted) and find_item_index(track, item_guid) is None
 
+def resolve_item_by_guid(request):
+    context, error = resolve_track(request)
+
+    if error is not None:
+        return None, error
+
+    item_guid = request.get("item_guid")
+
+    if not isinstance(item_guid, str) or not item_guid.strip():
+        return None, {"error": "item_guid must be a non-blank string"}
+
+    item_guid = item_guid.strip()
+    item = find_item_by_guid(context["track"], item_guid)
+
+    if not item:
+        for reaper_track_index in range(RPR_CountTracks(0)):
+            candidate_track = RPR_GetTrack(0, reaper_track_index)
+
+            if find_item_by_guid(candidate_track, item_guid):
+                return None, {
+                    "error": "item_track_mismatch",
+                    "item_guid": item_guid,
+                    "requested_track_index": context["track_index"],
+                    "actual_track_index": reaper_track_index + 1
+                }
+
+        return None, {
+            "error": "item_guid_not_found",
+            "item_guid": item_guid
+        }
+
+    context["item"] = item
+    context["item_guid"] = item_guid
+    context["item_index"] = find_item_index(context["track"], item_guid)
+    return context, None
+
 def get_take_source_type(take):
     source = RPR_GetMediaItemTake_Source(take)
     return RPR_GetMediaSourceType(source, "", 128)[1]
@@ -2163,6 +2199,184 @@ def handle_create_note_item(request):
         "success": success
     }
 
+def validate_midi_note_payload(
+    requested_notes, position_seconds, end_seconds, start_measure
+):
+    if not isinstance(requested_notes, list):
+        return None, {"error": "notes must be a list"}
+
+    end_musical = get_musical_position(
+        max(position_seconds, end_seconds - 1e-9)
+    )["musical_position"]
+    item_measure_count = end_musical["measure"] - start_measure + 1
+    validated_notes = []
+
+    for note_index, note in enumerate(requested_notes, start=1):
+        if not isinstance(note, dict):
+            return None, {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "message": "each note must be an object"
+            }
+
+        has_pitch = "pitch" in note
+        has_note_name = "note_name" in note
+
+        if has_pitch == has_note_name:
+            return None, {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "pitch/note_name",
+                "message": "provide exactly one of pitch or note_name"
+            }
+
+        pitch = (
+            note.get("pitch")
+            if has_pitch
+            else get_midi_pitch(note.get("note_name"))
+        )
+        velocity = note.get("velocity")
+        duration_qn = note.get("duration_qn")
+        note_start_measure = note.get("start_measure")
+        note_start_beat = note.get("start_beat")
+
+        if has_pitch and (
+            not isinstance(pitch, int)
+            or isinstance(pitch, bool)
+            or pitch < 0
+            or pitch > 127
+        ):
+            return None, {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "pitch",
+                "message": "pitch must be an integer from 0 through 127"
+            }
+
+        if has_note_name and pitch is None:
+            return None, {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "note_name",
+                "message": "note_name must be a valid MIDI note with octave"
+            }
+
+        if (
+            not isinstance(velocity, int)
+            or isinstance(velocity, bool)
+            or velocity < 1
+            or velocity > 127
+        ):
+            return None, {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "velocity",
+                "message": "velocity must be an integer from 1 through 127"
+            }
+
+        if (
+            not isinstance(duration_qn, (int, float))
+            or isinstance(duration_qn, bool)
+            or not math.isfinite(duration_qn)
+            or duration_qn <= 0
+        ):
+            return None, {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "duration_qn",
+                "message": "duration_qn must be a finite positive number"
+            }
+
+        if (
+            not isinstance(note_start_measure, int)
+            or isinstance(note_start_measure, bool)
+            or note_start_measure < 1
+        ):
+            return None, {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "start_measure",
+                "message": "start_measure must be a 1-based relative measure"
+            }
+
+        if note_start_measure > item_measure_count:
+            return None, {
+                "error": "midi_note_outside_item",
+                "note_index": note_index,
+                "field": "start_measure",
+                "message": "note start_measure is outside the MIDI item"
+            }
+
+        if (
+            not isinstance(note_start_beat, (int, float))
+            or isinstance(note_start_beat, bool)
+            or not math.isfinite(note_start_beat)
+            or note_start_beat < 1.0
+        ):
+            return None, {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "start_beat",
+                "message": "start_beat must be a finite number of at least 1"
+            }
+
+        absolute_measure = start_measure + note_start_measure - 1
+
+        try:
+            measure_start = get_measure_boundary(absolute_measure)
+            measure_end = get_measure_boundary(absolute_measure + 1)
+            note_start_seconds = RPR_TimeMap2_beatsToTime(
+                0, float(note_start_beat) - 1.0, absolute_measure - 1
+            )[0]
+            note_start_qn = RPR_TimeMap2_timeToQN(0, note_start_seconds)
+            note_end_qn = note_start_qn + float(duration_qn)
+            note_end_seconds = RPR_TimeMap2_QNToTime(0, note_end_qn)
+        except Exception as position_error:
+            return None, {
+                "error": "midi_note_position_resolution_failed",
+                "note_index": note_index,
+                "message": str(position_error)
+            }
+
+        if (
+            not math.isfinite(note_start_seconds)
+            or note_start_seconds < measure_start - 1e-9
+            or note_start_seconds >= measure_end - 1e-9
+        ):
+            return None, {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "start_beat",
+                "message": "start_beat is outside the local time signature"
+            }
+
+        if (
+            note_start_seconds < position_seconds - 1e-9
+            or note_start_seconds >= end_seconds - 1e-9
+            or not math.isfinite(note_end_seconds)
+            or note_end_seconds > end_seconds + 1e-9
+        ):
+            return None, {
+                "error": "midi_note_outside_item",
+                "note_index": note_index,
+                "message": "note start or end is outside the MIDI item"
+            }
+
+        validated_notes.append({
+            "pitch": pitch,
+            "velocity": velocity,
+            "duration_qn": float(duration_qn),
+            "start_measure": note_start_measure,
+            "start_beat": round(float(note_start_beat), 10),
+            "start_qn": note_start_qn,
+            "end_qn": note_end_qn
+        })
+
+    validated_notes.sort(key=lambda note: (
+        note["start_qn"], note["pitch"], note["end_qn"]
+    ))
+    return validated_notes, None
+
 def handle_create_midi_item(request):
     context, error = resolve_track(request)
 
@@ -2653,6 +2867,212 @@ def finalize_create_midi_item(operation, context):
             "cleanup_succeeded": cleanup_succeeded
         }
 
+def get_take_index(item, take):
+    for reaper_take_index in range(RPR_CountTakes(item)):
+        if RPR_GetTake(item, reaper_take_index) == take:
+            return reaper_take_index + 1
+
+    return None
+
+def get_midi_event_counts(take):
+    counts = RPR_MIDI_CountEvts(take, 0, 0, 0)
+    return {
+        "note_count": counts[2],
+        "cc_count": counts[3],
+        "text_sysex_count": counts[4],
+        "event_count": counts[2] + counts[3] + counts[4]
+    }
+
+def clear_all_midi_events(take):
+    counts = get_midi_event_counts(take)
+
+    for event_index in range(counts["note_count"] - 1, -1, -1):
+        if not RPR_MIDI_DeleteNote(take, event_index):
+            raise RuntimeError("REAPER failed to delete a MIDI note")
+
+    for event_index in range(counts["cc_count"] - 1, -1, -1):
+        if not RPR_MIDI_DeleteCC(take, event_index):
+            raise RuntimeError("REAPER failed to delete a MIDI CC event")
+
+    for event_index in range(counts["text_sysex_count"] - 1, -1, -1):
+        if not RPR_MIDI_DeleteTextSysex(take, event_index):
+            raise RuntimeError("REAPER failed to delete a MIDI text/sysex event")
+
+def read_replacement_notes(take, start_measure):
+    counts = get_midi_event_counts(take)
+    notes = []
+
+    for reaper_note_index in range(counts["note_count"]):
+        note_info = RPR_MIDI_GetNote(
+            take, reaper_note_index,
+            False, False, 0.0, 0.0, 0, 0, 0
+        )
+
+        if not note_info[0]:
+            raise RuntimeError("REAPER failed to read a replacement note")
+
+        note_start_qn = RPR_MIDI_GetProjQNFromPPQPos(take, note_info[5])
+        note_end_qn = RPR_MIDI_GetProjQNFromPPQPos(take, note_info[6])
+        note_start_seconds = RPR_MIDI_GetProjTimeFromPPQPos(
+            take, note_info[5]
+        )
+        musical = get_musical_position(
+            note_start_seconds
+        )["musical_position"]
+        notes.append({
+            "note_index": reaper_note_index + 1,
+            "note_name": get_midi_note_name(note_info[8]),
+            "pitch": note_info[8],
+            "start_measure": musical["measure"] - start_measure + 1,
+            "start_beat": round(musical["beat_within_measure"], 10),
+            "duration_qn": round(note_end_qn - note_start_qn, 10),
+            "velocity": note_info[9],
+            "start_ppq": note_info[5],
+            "end_ppq": note_info[6],
+            "start_qn": note_start_qn
+        })
+
+    return notes, counts
+
+def handle_replace_midi_item_content(request):
+    context, error = resolve_item_by_guid(request)
+
+    if error is not None:
+        return error
+
+    requested_notes = request.get("notes")
+    item = context["item"]
+    take = RPR_GetActiveTake(item)
+
+    if not take or not RPR_TakeIsMIDI(take):
+        return {
+            "error": "item_is_not_midi",
+            "item_guid": context["item_guid"]
+        }
+
+    position_seconds = RPR_GetMediaItemInfo_Value(item, "D_POSITION")
+    duration_seconds = RPR_GetMediaItemInfo_Value(item, "D_LENGTH")
+    end_seconds = position_seconds + duration_seconds
+    start_measure = get_musical_position(
+        position_seconds
+    )["musical_position"]["measure"]
+    validated_notes, validation_error = validate_midi_note_payload(
+        requested_notes, position_seconds, end_seconds, start_measure
+    )
+
+    if validation_error is not None:
+        return validation_error
+
+    take_index = get_take_index(item, take)
+    take_name = RPR_GetTakeName(take)
+    previous_counts = get_midi_event_counts(take)
+    original_guid = get_item_identity(item)
+    original_muted = bool(RPR_GetMediaItemInfo_Value(item, "B_MUTE"))
+    original_locked = bool(RPR_GetMediaItemInfo_Value(item, "C_LOCK"))
+    chunk_info = RPR_GetItemStateChunk(item, "", 4194304, False)
+
+    if not chunk_info[0]:
+        return {"error": "midi_content_snapshot_failed"}
+
+    original_chunk = chunk_info[2]
+
+    try:
+        clear_all_midi_events(take)
+
+        for note in validated_notes:
+            if not RPR_MIDI_InsertNote(
+                take,
+                False,
+                False,
+                RPR_MIDI_GetPPQPosFromProjQN(take, note["start_qn"]),
+                RPR_MIDI_GetPPQPosFromProjQN(take, note["end_qn"]),
+                0,
+                note["pitch"],
+                note["velocity"],
+                True
+            ):
+                raise RuntimeError("REAPER failed to insert a replacement note")
+
+        RPR_MIDI_Sort(take)
+        RPR_UpdateArrange()
+        applied_guid = get_item_identity(item)
+        applied_position = RPR_GetMediaItemInfo_Value(item, "D_POSITION")
+        applied_duration = RPR_GetMediaItemInfo_Value(item, "D_LENGTH")
+        applied_notes, applied_counts = read_replacement_notes(
+            take, start_measure
+        )
+        notes_match = len(applied_notes) == len(validated_notes)
+
+        for applied, expected in zip(applied_notes, validated_notes):
+            notes_match = notes_match and (
+                applied["pitch"] == expected["pitch"]
+                and applied["velocity"] == expected["velocity"]
+                and applied["start_measure"] == expected["start_measure"]
+                and math.isclose(
+                    applied["start_beat"], expected["start_beat"],
+                    rel_tol=1e-9, abs_tol=1e-9
+                )
+                and math.isclose(
+                    applied["start_qn"], expected["start_qn"],
+                    rel_tol=1e-9, abs_tol=1e-9
+                )
+                and math.isclose(
+                    applied["duration_qn"], expected["duration_qn"],
+                    rel_tol=1e-9, abs_tol=1e-9
+                )
+            )
+
+        item_unchanged = (
+            applied_guid == original_guid
+            and math.isclose(
+                applied_position, position_seconds,
+                rel_tol=1e-9, abs_tol=1e-9
+            )
+            and math.isclose(
+                applied_duration, duration_seconds,
+                rel_tol=1e-9, abs_tol=1e-9
+            )
+            and bool(RPR_GetMediaItemInfo_Value(item, "B_MUTE"))
+            == original_muted
+            and bool(RPR_GetMediaItemInfo_Value(item, "C_LOCK"))
+            == original_locked
+        )
+        stale_events_cleared = (
+            applied_counts["cc_count"] == 0
+            and applied_counts["text_sysex_count"] == 0
+        )
+
+        if not notes_match or not item_unchanged or not stale_events_cleared:
+            raise RuntimeError("MIDI replacement read-back verification failed")
+
+        for note in applied_notes:
+            note.pop("start_qn", None)
+
+        return {
+            "track_index": context["track_index"],
+            "track_name": context["track_name"],
+            "item_guid": applied_guid,
+            "take_index": take_index,
+            "take_name": take_name,
+            "previous_event_count": previous_counts["event_count"],
+            "previous_note_count": previous_counts["note_count"],
+            "new_note_count": applied_counts["note_count"],
+            "item_position_seconds": applied_position,
+            "item_end_seconds": applied_position + applied_duration,
+            "notes": applied_notes,
+            "success": True
+        }
+    except Exception as replacement_error:
+        rollback_succeeded = bool(
+            RPR_SetItemStateChunk(item, original_chunk, False)
+        )
+        RPR_UpdateArrange()
+        return {
+            "error": "midi_content_replacement_failed",
+            "message": str(replacement_error),
+            "rollback_succeeded": rollback_succeeded
+        }
+
 def handle_get_fx_presets(request):
     fx_context, error = resolve_track_fx(request)
 
@@ -2741,6 +3161,7 @@ COMMAND_HANDLERS = {
     "set_track_solo": handle_set_track_solo,
     "create_note_item": handle_create_note_item,
     "create_midi_item": handle_create_midi_item,
+    "replace_midi_item_content": handle_replace_midi_item_content,
 }
 
 loop()

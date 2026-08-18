@@ -885,6 +885,28 @@
           "fixed_in": "7a1fd3420da9183f3344895d4979612c6d5ac7ee"
         }
       ]
+    },
+    {
+      "id": "WR-009",
+      "category": "mutation",
+      "title": "Replace MIDI item content",
+      "status": "testing",
+      "priority": "medium",
+      "capability": "replace_midi_item_content",
+      "description": "Atomically replace every MIDI event in an existing GUID-identified MIDI item with a validated complete note payload.",
+      "depends_on": ["WR-008", "RO-017"],
+      "acceptance_criteria": [
+        "Resolve the target by one-based track_index plus exact item_guid, verify track ownership, and reject missing, mismatched, or non-MIDI targets.",
+        "Reuse the create_midi_item musical note contract and validate the complete payload before destructive mutation, including item-relative positions and boundaries resolved through REAPER time-map APIs.",
+        "Clear all previous MIDI events before inserting the replacement so notes, CC, pitch bend, program changes, pressure, text, sysex, and other stale events are not preserved.",
+        "Allow an empty notes array to intentionally clear all MIDI content while preserving the MediaItem.",
+        "Support independently positioned notes including chords, overlaps, and gaps.",
+        "Preserve the MediaItem GUID, track assignment, position, length, mute state, lock state, and placement.",
+        "Read back and verify item identity and boundaries plus the complete replacement note payload before reporting success.",
+        "Reject invalid replacement input without changing existing MIDI content and restore the original event stream after an unexpected post-clear failure when safely practical.",
+        "Runtime-test complete replacement, event clearing, empty replacement, validation safety, target errors, item preservation, and visual MIDI-editor behavior against REAPER."
+      ],
+      "bugs": []
     }
   ]
 }

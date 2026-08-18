@@ -347,6 +347,20 @@ def create_midi_item(
     )
 
 @mcp.tool()
+def replace_midi_item_content(
+    track_index: int,
+    item_guid: str,
+    notes: list[dict]
+) -> dict:
+    """Replace every MIDI event in one GUID-identified MIDI item."""
+    return send_reaper_command(
+        "replace_midi_item_content",
+        track_index=track_index,
+        item_guid=item_guid,
+        notes=notes
+    )
+
+@mcp.tool()
 def ping() -> str:
     """Simple MCP connectivity test."""
     return "pong"
