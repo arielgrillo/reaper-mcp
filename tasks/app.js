@@ -8,6 +8,7 @@ const state = {
   nextRefreshAt: 0,
   openTaskSections: new Set(),
   openBugPanels: new Set(),
+  bugSummaryOpen: false,
   filters: {
     search: "",
     status: "all",
@@ -18,6 +19,9 @@ const state = {
 
 const elements = {
   summary: document.querySelector("#summary"),
+  bugSummary: document.querySelector("#bug-summary"),
+  bugSummaryCounts: document.querySelector("#bug-summary-counts"),
+  bugSummaryList: document.querySelector("#bug-summary-list"),
   progressBar: document.querySelector("#progress-bar"),
   progressLabel: document.querySelector("#progress-label"),
   refreshRing: document.querySelector("#refresh-ring"),
@@ -62,6 +66,86 @@ function renderSummary() {
   elements.progressBar.style.width = `${percentage}%`;
 }
 
+function allBugs() {
+  return state.tasks.flatMap(task => (task.bugs ?? []).map(bug => ({
+    ...bug,
+    taskId: task.id,
+    taskTitle: task.title
+  })));
+}
+
+function renderBugSummary() {
+  const bugs = allBugs();
+  const statusCounts = new Map();
+
+  for (const bug of bugs) {
+    statusCounts.set(bug.status, (statusCounts.get(bug.status) ?? 0) + 1);
+  }
+
+  const countParts = [`${bugs.length} total`];
+  for (const status of ["open", "fixed", "wont-fix"]) {
+    if (status !== "wont-fix" || statusCounts.has(status)) {
+      countParts.push(`${statusCounts.get(status) ?? 0} ${status}`);
+    }
+  }
+  elements.bugSummaryCounts.textContent = countParts.join(" · ");
+  elements.bugSummary.open = state.bugSummaryOpen;
+
+  const statusOrder = ["open", "fixed", "wont-fix"];
+  const statuses = [...statusCounts.keys()].sort((left, right) => {
+    const leftIndex = statusOrder.indexOf(left);
+    const rightIndex = statusOrder.indexOf(right);
+    return (leftIndex < 0 ? statusOrder.length : leftIndex)
+      - (rightIndex < 0 ? statusOrder.length : rightIndex)
+      || left.localeCompare(right);
+  });
+  const groups = statuses.map(status => {
+    const group = document.createElement("section");
+    group.className = `bug-summary-group bug-summary-group-${status}`;
+
+    const heading = document.createElement("h3");
+    heading.textContent = `${label(status)} (${statusCounts.get(status)})`;
+    group.append(heading);
+
+    for (const bug of bugs.filter(entry => entry.status === status)) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = `bug-summary-item bug-summary-item-${status}`;
+      item.addEventListener("click", () => navigateToTask(bug.taskId));
+
+      const identity = document.createElement("span");
+      identity.className = "bug-summary-identity";
+      const bugId = document.createElement("code");
+      bugId.textContent = bug.id;
+      const bugStatus = document.createElement("span");
+      bugStatus.className = `bug-status bug-status-${status}`;
+      bugStatus.textContent = label(status);
+      identity.append(bugId, bugStatus);
+
+      const title = document.createElement("strong");
+      title.textContent = bug.title ?? bug.description;
+
+      const owner = document.createElement("span");
+      owner.className = "bug-summary-owner";
+      owner.textContent = `${bug.taskId} — ${bug.taskTitle}`;
+
+      item.append(identity, title, owner);
+      group.append(item);
+    }
+
+    return group;
+  });
+
+  if (groups.length) {
+    elements.bugSummaryList.replaceChildren(...groups);
+  } else {
+    const empty = document.createElement("p");
+    empty.className = "bug-summary-empty";
+    empty.textContent = "No bugs recorded.";
+    elements.bugSummaryList.replaceChildren(empty);
+  }
+}
+
 function populateCategories() {
   const categories = [...new Set(state.tasks.map(task => task.category))].sort();
   const selectedCategory = elements.category.value;
@@ -92,6 +176,7 @@ function matchesFilters(task) {
 function createTaskCard(task) {
   const fragment = elements.template.content.cloneNode(true);
   const card = fragment.querySelector(".task-card");
+  card.dataset.taskId = task.id;
   card.classList.add(task.status);
   fragment.querySelector(".task-id").textContent = task.id;
 
@@ -190,6 +275,32 @@ function renderTasks() {
   elements.emptyState.hidden = visibleTasks.length !== 0;
 }
 
+function navigateToTask(taskId) {
+  if (!state.tasks.some(task => task.id === taskId)) return;
+
+  state.filters = {
+    search: "",
+    status: "all",
+    category: "all",
+    priority: "all"
+  };
+  elements.search.value = "";
+  elements.status.value = "all";
+  elements.category.value = "all";
+  elements.priority.value = "all";
+  state.openTaskSections.add(taskId);
+  state.openBugPanels.add(taskId);
+  saveExpansionState();
+  renderTasks();
+
+  const card = elements.taskList.querySelector(`[data-task-id="${taskId}"]`);
+  if (!card) return;
+
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  card.classList.add("task-card-targeted");
+  window.setTimeout(() => card.classList.remove("task-card-targeted"), 2200);
+}
+
 function bindFilters() {
   elements.search.addEventListener("input", event => {
     state.filters.search = event.target.value.trim();
@@ -225,7 +336,8 @@ function updateExpandedSet(expandedSet, taskId, isOpen) {
 function saveExpansionState() {
   sessionStorage.setItem(EXPANSION_STORAGE_KEY, JSON.stringify({
     taskSections: [...state.openTaskSections],
-    bugPanels: [...state.openBugPanels]
+    bugPanels: [...state.openBugPanels],
+    bugSummaryOpen: state.bugSummaryOpen
   }));
 }
 
@@ -236,9 +348,11 @@ function restoreExpansionState() {
     );
     state.openTaskSections = new Set(savedState.taskSections ?? []);
     state.openBugPanels = new Set(savedState.bugPanels ?? []);
+    state.bugSummaryOpen = savedState.bugSummaryOpen ?? false;
   } catch {
     state.openTaskSections.clear();
     state.openBugPanels.clear();
+    state.bugSummaryOpen = false;
   }
 }
 
@@ -294,6 +408,7 @@ async function refreshBacklog({ preserveScroll = false } = {}) {
     state.tasks = backlog.tasks;
     pruneExpansionState();
     renderSummary();
+    renderBugSummary();
     populateCategories();
     renderTasks();
     elements.errorState.hidden = true;
@@ -314,6 +429,10 @@ async function initialize() {
   const savedScrollPosition = Number(sessionStorage.getItem(SCROLL_STORAGE_KEY)) || 0;
   restoreExpansionState();
   bindFilters();
+  elements.bugSummary.addEventListener("toggle", () => {
+    state.bugSummaryOpen = elements.bugSummary.open;
+    saveExpansionState();
+  });
   await refreshBacklog();
   restoreScrollPosition(savedScrollPosition);
 

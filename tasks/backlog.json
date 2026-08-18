@@ -258,6 +258,23 @@
       ]
     },
     {
+      "id": "TL-014",
+      "category": "tooling",
+      "title": "Backlog header bug summary and navigation",
+      "status": "testing",
+      "priority": "medium",
+      "capability": "backlog_header_bug_summary",
+      "description": "Summarize all task-owned bugs in the visualizer header and navigate from each bug to its owning task.",
+      "depends_on": ["TL-006", "TL-013"],
+      "acceptance_criteria": [
+        "Derive full-backlog bug totals and status counts dynamically from task bugs arrays.",
+        "Provide a refresh-stable collapsible bug list showing bug identity, description, status, and owning task.",
+        "Navigate from a bug to its owning task even when filters hide it, expanding and briefly highlighting the target card.",
+        "Handle missing owning tasks gracefully without storing navigation state in backlog.json."
+      ],
+      "bugs": []
+    },
+    {
       "id": "DX-001",
       "category": "diagnostic",
       "title": "MCP connectivity ping",
