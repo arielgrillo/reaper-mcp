@@ -334,6 +334,225 @@ def handle_get_tracks(request):
         "tracks": tracks
     }
 
+def get_track_identity(track):
+    if not track:
+        return None, None
+
+    track_index = int(
+        RPR_GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER")
+    )
+    track_name_info = RPR_GetTrackName(track, "", 512)
+
+    return track_index, track_name_info[2]
+
+def find_track_index_by_name(track_name):
+    matching_indexes = []
+
+    for reaper_track_index in range(RPR_CountTracks(0)):
+        candidate_track = RPR_GetTrack(0, reaper_track_index)
+        _, candidate_name = get_track_identity(candidate_track)
+
+        if candidate_name == track_name:
+            matching_indexes.append(reaper_track_index + 1)
+
+    return matching_indexes[0] if len(matching_indexes) == 1 else None
+
+def decode_audio_channels(source_channels_raw, destination_channels_raw):
+    if source_channels_raw < 0:
+        return [], []
+
+    source_offset = source_channels_raw & 1023
+    source_mode = source_channels_raw >> 10
+
+    if source_mode == 0:
+        source_channel_count = 2
+    elif source_mode == 1:
+        source_channel_count = 1
+    else:
+        source_channel_count = source_mode * 2
+
+    source_channels = list(range(
+        source_offset + 1,
+        source_offset + source_channel_count + 1
+    ))
+    destination_offset = destination_channels_raw & 1023
+    destination_channel_count = (
+        1
+        if destination_channels_raw & 1024
+        else source_channel_count
+    )
+    destination_channels = list(range(
+        destination_offset + 1,
+        destination_offset + destination_channel_count + 1
+    ))
+
+    return source_channels, destination_channels
+
+def decode_midi_routing(midi_flags_raw):
+    source_channel = midi_flags_raw & 31
+    destination_channel = (midi_flags_raw >> 5) & 31
+
+    if source_channel == 0:
+        midi_source = "all"
+    elif source_channel == 31:
+        midi_source = "disabled"
+    else:
+        midi_source = source_channel
+
+    midi_destination = (
+        "original"
+        if destination_channel == 0
+        else destination_channel
+    )
+
+    return midi_source, midi_destination
+
+def get_routing_entry(track, category, routing_index):
+    volume = RPR_GetTrackSendInfo_Value(
+        track,
+        category,
+        routing_index,
+        "D_VOL"
+    )
+    volume_db = linear_to_db(volume)
+    pan = RPR_GetTrackSendInfo_Value(
+        track,
+        category,
+        routing_index,
+        "D_PAN"
+    )
+    pan_info = get_pan_info(pan)
+    source_channels_raw = int(RPR_GetTrackSendInfo_Value(
+        track,
+        category,
+        routing_index,
+        "I_SRCCHAN"
+    ))
+    destination_channels_raw = int(RPR_GetTrackSendInfo_Value(
+        track,
+        category,
+        routing_index,
+        "I_DSTCHAN"
+    ))
+    midi_flags_raw = int(RPR_GetTrackSendInfo_Value(
+        track,
+        category,
+        routing_index,
+        "I_MIDIFLAGS"
+    ))
+
+    source_channels, destination_channels = decode_audio_channels(
+        source_channels_raw,
+        destination_channels_raw
+    )
+    midi_source, midi_destination = decode_midi_routing(midi_flags_raw)
+
+    track_index, track_name = get_track_identity(track)
+    hardware_output_name = None
+
+    if category < 0:
+        receive_name = RPR_GetTrackReceiveName(
+            track,
+            routing_index,
+            "",
+            512
+        )[3]
+        source_track_index = find_track_index_by_name(receive_name)
+        source_track_name = receive_name
+        destination_track_index = track_index
+        destination_track_name = track_name
+    elif category == 0:
+        hardware_output_count = RPR_GetTrackNumSends(track, 1)
+        send_name = RPR_GetTrackSendName(
+            track,
+            hardware_output_count + routing_index,
+            "",
+            512
+        )[3]
+        source_track_index = track_index
+        source_track_name = track_name
+        destination_track_index = find_track_index_by_name(send_name)
+        destination_track_name = send_name
+    else:
+        hardware_output_name = RPR_GetTrackSendName(
+            track,
+            routing_index,
+            "",
+            512
+        )[3]
+        source_track_index = track_index
+        source_track_name = track_name
+        destination_track_index = None
+        destination_track_name = None
+
+    return {
+        "index": routing_index + 1,
+        "source_track_index": source_track_index,
+        "source_track_name": source_track_name,
+        "destination_track_index": destination_track_index,
+        "destination_track_name": destination_track_name,
+        "hardware_output_name": hardware_output_name,
+        "volume_raw": volume,
+        "volume_db": round(volume_db, 2) if volume_db is not None else None,
+        "pan_raw": pan_info["pan"],
+        "pan_percent": pan_info["pan_percent"],
+        "pan_direction": pan_info["pan_direction"],
+        "muted": bool(RPR_GetTrackSendInfo_Value(
+            track,
+            category,
+            routing_index,
+            "B_MUTE"
+        )),
+        "audio_source_channels_raw": source_channels_raw,
+        "audio_source_channels": source_channels,
+        "audio_destination_channels_raw": destination_channels_raw,
+        "audio_destination_channels": destination_channels,
+        "midi_flags_raw": midi_flags_raw,
+        "midi_source": midi_source,
+        "midi_destination": midi_destination
+    }
+
+def handle_get_track_routing(request):
+    track_index = request.get("track_index")
+
+    if not isinstance(track_index, int) or isinstance(track_index, bool):
+        return {
+            "error": "track_index must be a 1-based integer"
+        }
+
+    track_count = RPR_CountTracks(0)
+
+    if track_index < 1 or track_index > track_count:
+        return {
+            "error": (
+                f"Track index {track_index} is out of range; "
+                f"project has {track_count} tracks"
+            )
+        }
+
+    track = RPR_GetTrack(0, track_index - 1)
+    _, track_name = get_track_identity(track)
+
+    categories = {
+        "sends": 0,
+        "receives": -1,
+        "hardware_outputs": 1
+    }
+    routing = {}
+
+    for collection_name, category in categories.items():
+        routing_count = RPR_GetTrackNumSends(track, category)
+        routing[collection_name] = [
+            get_routing_entry(track, category, routing_index)
+            for routing_index in range(routing_count)
+        ]
+
+    return {
+        "track_index": track_index,
+        "track_name": track_name,
+        **routing
+    }
+
 def handle_get_track_fx(request):
     tracks = []
 
@@ -1005,6 +1224,7 @@ COMMAND_HANDLERS = {
     "get_tempo_map": handle_get_tempo_map,
     "get_markers_regions": handle_get_markers_regions,
     "get_tracks": handle_get_tracks,
+    "get_track_routing": handle_get_track_routing,
     "get_track_fx": handle_get_track_fx,
     "get_fx_parameters": handle_get_fx_parameters,
     "get_fx_parameter": handle_get_fx_parameter,

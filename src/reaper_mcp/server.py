@@ -44,6 +44,14 @@ def get_tracks() -> dict:
     return send_reaper_command("get_tracks")
 
 @mcp.tool()
+def get_track_routing(track_index: int) -> dict:
+    """Return sends, receives, and hardware outputs for one track."""
+    return send_reaper_command(
+        "get_track_routing",
+        track_index=track_index
+    )
+
+@mcp.tool()
 def get_markers_regions() -> dict:
     """Return timeline-ordered markers and regions from the current project."""
     return send_reaper_command("get_markers_regions")

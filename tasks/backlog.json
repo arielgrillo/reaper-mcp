@@ -307,15 +307,15 @@
       "id": "RO-010",
       "category": "read-only",
       "title": "Get track routing",
-      "status": "pending",
+      "status": "completed",
       "priority": "high",
       "capability": "get_track_routing",
       "description": "Inspect sends, receives, and relevant routing state for project tracks.",
       "depends_on": ["RO-003"],
       "acceptance_criteria": [
-        "Return track identity and ordered send and receive collections.",
-        "Preserve useful raw routing values and clear source/destination identities.",
-        "Handle tracks without routing entries and do not mutate routing."
+        "Return validated track identity and ordered send, receive, and hardware-output collections.",
+        "Preserve raw and human-readable mix, channel, MIDI, and explicit source/destination routing values.",
+        "Handle tracks without routing entries, reject invalid one-based track indexes, and do not mutate routing."
       ]
     },
     {
