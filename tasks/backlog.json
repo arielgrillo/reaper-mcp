@@ -933,6 +933,24 @@
         "Validate tool coverage and signatures programmatically and pass the repository markdownlint workflow."
       ],
       "bugs": []
+    },
+    {
+      "id": "TL-016",
+      "category": "tooling",
+      "title": "Backlog category counts panel",
+      "status": "testing",
+      "priority": "low",
+      "capability": "backlog_category_counts",
+      "description": "Show full-backlog total and pending task counts for every category beneath the bug summary.",
+      "depends_on": ["TL-004", "TL-011"],
+      "acceptance_criteria": [
+        "Render a compact category panel directly below the Bugs panel.",
+        "Derive every category and its total and pending counts dynamically from the complete backlog.",
+        "Keep category counts independent of task search and filters.",
+        "Refresh category counts through the existing manual and automatic backlog refresh flow.",
+        "Preserve the current visualizer design language and responsive layout."
+      ],
+      "bugs": []
     }
   ]
 }

@@ -22,6 +22,7 @@ const elements = {
   bugSummary: document.querySelector("#bug-summary"),
   bugSummaryCounts: document.querySelector("#bug-summary-counts"),
   bugSummaryList: document.querySelector("#bug-summary-list"),
+  categorySummaryList: document.querySelector("#category-summary-list"),
   progressBar: document.querySelector("#progress-bar"),
   progressLabel: document.querySelector("#progress-label"),
   refreshRing: document.querySelector("#refresh-ring"),
@@ -144,6 +145,38 @@ function renderBugSummary() {
     empty.textContent = "No bugs recorded.";
     elements.bugSummaryList.replaceChildren(empty);
   }
+}
+
+function renderCategorySummary() {
+  const categoryCounts = new Map();
+
+  for (const task of state.tasks) {
+    const counts = categoryCounts.get(task.category) ?? {
+      total: 0,
+      pending: 0
+    };
+    counts.total += 1;
+    counts.pending += task.status === "pending" ? 1 : 0;
+    categoryCounts.set(task.category, counts);
+  }
+
+  const cards = [...categoryCounts.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([category, counts]) => {
+      const card = document.createElement("article");
+      card.className = "category-summary-card";
+
+      const name = document.createElement("strong");
+      name.textContent = label(category);
+
+      const values = document.createElement("span");
+      values.innerHTML = `<b>${counts.total}</b> total · <b>${counts.pending}</b> pending`;
+
+      card.append(name, values);
+      return card;
+    });
+
+  elements.categorySummaryList.replaceChildren(...cards);
 }
 
 function populateCategories() {
@@ -415,6 +448,7 @@ async function refreshBacklog({ preserveScroll = false } = {}) {
     pruneExpansionState();
     renderSummary();
     renderBugSummary();
+    renderCategorySummary();
     populateCategories();
     renderTasks();
     elements.errorState.hidden = true;

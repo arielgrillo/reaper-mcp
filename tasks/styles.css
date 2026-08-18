@@ -126,6 +126,34 @@ h1 {
 .bug-summary-owner { color: var(--blue); font-size: 0.76rem; font-weight: 700; }
 .bug-summary-empty { margin: 0; color: var(--muted); }
 
+.category-summary {
+  margin-bottom: 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  padding: 0.9rem 1rem;
+  background: rgba(25, 25, 24, 0.92);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.16);
+}
+.category-summary h2 { margin-bottom: 0.75rem; font-size: 0.88rem; }
+.category-summary-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.65rem;
+}
+.category-summary-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--surface-raised);
+}
+.category-summary-card strong { color: var(--text); font-size: 0.8rem; }
+.category-summary-card span { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+.category-summary-card span b:first-child { color: var(--blue); }
+.category-summary-card span b:last-child { color: var(--accent); }
+
 .summary {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
