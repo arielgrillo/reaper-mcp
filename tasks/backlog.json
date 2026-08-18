@@ -246,7 +246,7 @@
       "id": "TL-013",
       "category": "tooling",
       "title": "Backlog refresh visibility and intake workflow",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "backlog_refresh_and_intake_workflow",
       "description": "Improve refresh feedback and task-panel continuity while ensuring new repository work is represented in the backlog before implementation.",
