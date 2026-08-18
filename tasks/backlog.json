@@ -612,7 +612,7 @@
       "id": "RO-019",
       "category": "read-only",
       "title": "Get envelope points",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "get_envelope_points",
       "description": "Return automation points for one validated track envelope.",
