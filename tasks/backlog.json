@@ -125,9 +125,9 @@
         {
           "id": "BUG-007",
           "description": "The visualizer crashes while rendering a valid backlog task whose optional capability field is absent.",
-          "status": "open",
+          "status": "fixed",
           "discovered_during": "runtime-validation",
-          "fixed_in": null
+          "fixed_in": "9f5cba6a74924d5c652c16711de5074fb9757bff"
         }
       ]
     },
