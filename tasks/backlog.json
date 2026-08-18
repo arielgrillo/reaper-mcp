@@ -527,7 +527,7 @@
           "description": "get_item_info closes the bridge response without JSON when reading an item with an active take, causing the MCP client to fail with a JSON decode error.",
           "status": "fixed",
           "discovered_during": "runtime-validation",
-          "fixed_in": null
+          "fixed_in": "39f533b6e63ba9abccb14191ef2986cc7a5c7b52"
         }
       ]
     },
