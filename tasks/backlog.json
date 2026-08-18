@@ -890,7 +890,7 @@
       "id": "WR-009",
       "category": "mutation",
       "title": "Replace MIDI item content",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "replace_midi_item_content",
       "description": "Atomically replace every MIDI event in an existing GUID-identified MIDI item with a validated complete note payload.",
