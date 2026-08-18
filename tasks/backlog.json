@@ -552,7 +552,7 @@
       "id": "RO-015",
       "category": "read-only",
       "title": "Get item takes",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "get_item_takes",
       "description": "Return takes for one validated media item.",
