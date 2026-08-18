@@ -860,7 +860,8 @@
       "acceptance_criteria": [
         "Validate one-based track and measure inputs and resolve exclusive item boundaries through REAPER time-map APIs.",
         "Create a real MIDI MediaItem and take containing sequential notes with the established MIDI note-name convention.",
-        "Validate pitches from 0 through 127, velocities from 1 through 127, and finite positive quarter-note durations without clamping.",
+        "Accept exactly one of numeric pitch or human-readable note_name per note and normalize either representation to a valid MIDI pitch.",
+        "Validate pitches from 0 through 127, note names with explicit octaves, velocities from 1 through 127, and finite positive quarter-note durations without clamping.",
         "Reject note sequences that exceed the item's available musical duration before mutation while allowing shorter and exact-fit sequences.",
         "Reject overlap with existing MediaItems without modifying them and allow items that only touch at boundaries.",
         "Read back item identity, boundaries, MIDI take, note count, and created note data before reporting success.",

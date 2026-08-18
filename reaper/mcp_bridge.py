@@ -130,6 +130,29 @@ def get_midi_note_name(pitch):
     octave = (pitch // 12) - 1
     return f"{note_names[pitch % 12]}{octave}"
 
+def get_midi_pitch(note_name):
+    if not isinstance(note_name, str):
+        return None
+
+    match = re.fullmatch(
+        r"([A-Ga-g])([#b]?)(-1|[0-9])",
+        note_name.strip()
+    )
+
+    if match is None:
+        return None
+
+    semitones = {
+        "C": 0, "D": 2, "E": 4, "F": 5,
+        "G": 7, "A": 9, "B": 11
+    }
+    accidental = {"": 0, "#": 1, "b": -1}[match.group(2)]
+    octave = int(match.group(3))
+    pitch = ((octave + 1) * 12) + semitones[match.group(1).upper()]
+    pitch += accidental
+
+    return pitch if 0 <= pitch <= 127 else None
+
 def handle_get_tempo_map(request):
     events = []
     marker_count = RPR_CountTempoTimeSigMarkers(0)
@@ -2179,11 +2202,28 @@ def handle_create_midi_item(request):
                 "message": "each note must be an object"
             }
 
-        pitch = note.get("pitch")
+        has_pitch = "pitch" in note
+        has_note_name = "note_name" in note
+
+        if has_pitch == has_note_name:
+            return {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "pitch/note_name",
+                "message": (
+                    "provide exactly one of pitch or note_name"
+                )
+            }
+
+        pitch = (
+            note.get("pitch")
+            if has_pitch
+            else get_midi_pitch(note.get("note_name"))
+        )
         velocity = note.get("velocity")
         duration_qn = note.get("duration_qn")
 
-        if (
+        if has_pitch and (
             not isinstance(pitch, int)
             or isinstance(pitch, bool)
             or pitch < 0
@@ -2194,6 +2234,17 @@ def handle_create_midi_item(request):
                 "note_index": note_index,
                 "field": "pitch",
                 "message": "pitch must be an integer from 0 through 127"
+            }
+
+        if has_note_name and pitch is None:
+            return {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "note_name",
+                "message": (
+                    "note_name must be a valid MIDI note such as C4, "
+                    "F#3, or Bb2"
+                )
             }
 
         if (

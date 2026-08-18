@@ -337,7 +337,7 @@ def create_midi_item(
     end_measure: int,
     notes: list[dict]
 ) -> dict:
-    """Create a measure-bounded MIDI item with sequential notes."""
+    """Create sequential notes using exclusive pitch or note_name input."""
     return send_reaper_command(
         "create_midi_item",
         track_index=track_index,
