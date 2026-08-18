@@ -859,12 +859,14 @@
       "depends_on": ["WR-007", "RO-017"],
       "acceptance_criteria": [
         "Validate one-based track and measure inputs and resolve exclusive item boundaries through REAPER time-map APIs.",
-        "Create a real MIDI MediaItem and take containing sequential notes with the established MIDI note-name convention.",
+        "Create a real MIDI MediaItem and take containing independently positioned notes with the established MIDI note-name convention.",
         "Accept exactly one of numeric pitch or human-readable note_name per note and normalize either representation to a valid MIDI pitch.",
-        "Validate pitches from 0 through 127, note names with explicit octaves, velocities from 1 through 127, and finite positive quarter-note durations without clamping.",
-        "Reject note sequences that exceed the item's available musical duration before mutation while allowing shorter and exact-fit sequences.",
+        "Require an explicit one-based start_measure and valid start_beat relative to the MIDI item for every note, resolved through REAPER time-map APIs.",
+        "Validate pitches from 0 through 127, note names with explicit octaves, velocities from 1 through 127, and finite positive duration_qn values without clamping.",
+        "Position every note independently so chords, overlapping notes, and gaps are supported.",
+        "Reject any note whose start or end falls outside the MIDI item before mutation.",
         "Reject overlap with existing MediaItems without modifying them and allow items that only touch at boundaries.",
-        "Read back item identity, boundaries, MIDI take, note count, and created note data before reporting success.",
+        "Read back item identity, boundaries, MIDI take, note count, PPQ values, and relative musical positions before reporting success.",
         "Leave no empty or partially populated item after validation or unexpected creation failure."
       ],
       "bugs": [
@@ -874,6 +876,13 @@
           "status": "fixed",
           "discovered_during": "runtime-validation",
           "fixed_in": "81145f2a4f564488f01595afd8340a818ace39e3"
+        },
+        {
+          "id": "BUG-006",
+          "description": "Explicit musical note-position validation closed the bridge response without JSON when resolving a note through the REAPER time-map APIs.",
+          "status": "open",
+          "discovered_during": "runtime-validation",
+          "fixed_in": null
         }
       ]
     }

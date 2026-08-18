@@ -2192,6 +2192,31 @@ def handle_create_midi_item(request):
     if not isinstance(requested_notes, list) or not requested_notes:
         return {"error": "notes must be a non-empty list"}
 
+    position_seconds = get_measure_boundary(start_measure)
+    end_seconds = get_measure_boundary(end_measure)
+    duration_seconds = end_seconds - position_seconds
+
+    if (
+        not math.isfinite(position_seconds)
+        or not math.isfinite(end_seconds)
+        or duration_seconds <= 0.0
+    ):
+        return {
+            "error": "REAPER returned invalid measure boundary positions"
+        }
+
+    start_qn = RPR_TimeMap2_timeToQN(0, position_seconds)
+    end_qn = RPR_TimeMap2_timeToQN(0, end_seconds)
+    available_duration_qn = end_qn - start_qn
+
+    if (
+        not math.isfinite(start_qn)
+        or not math.isfinite(end_qn)
+        or available_duration_qn <= 0.0
+    ):
+        return {"error": "REAPER returned an invalid musical item duration"}
+
+    item_measure_count = end_measure - start_measure
     validated_notes = []
 
     for note_index, note in enumerate(requested_notes, start=1):
@@ -2222,6 +2247,8 @@ def handle_create_midi_item(request):
         )
         velocity = note.get("velocity")
         duration_qn = note.get("duration_qn")
+        note_start_measure = note.get("start_measure")
+        note_start_beat = note.get("start_beat")
 
         if has_pitch and (
             not isinstance(pitch, int)
@@ -2273,45 +2300,107 @@ def handle_create_midi_item(request):
                 "message": "duration_qn must be a finite positive number"
             }
 
+        if (
+            not isinstance(note_start_measure, int)
+            or isinstance(note_start_measure, bool)
+            or note_start_measure < 1
+        ):
+            return {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "start_measure",
+                "message": (
+                    "start_measure must be a 1-based positive integer "
+                    "relative to the MIDI item"
+                )
+            }
+
+        if note_start_measure > item_measure_count:
+            return {
+                "error": "midi_note_outside_item",
+                "note_index": note_index,
+                "field": "start_measure",
+                "message": "note start_measure is outside the MIDI item"
+            }
+
+        if (
+            not isinstance(note_start_beat, (int, float))
+            or isinstance(note_start_beat, bool)
+            or not math.isfinite(note_start_beat)
+            or note_start_beat < 1.0
+        ):
+            return {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "start_beat",
+                "message": "start_beat must be a finite number of at least 1"
+            }
+
+        absolute_measure = start_measure + note_start_measure - 1
+
+        try:
+            measure_start = get_measure_boundary(absolute_measure)
+            measure_end = get_measure_boundary(absolute_measure + 1)
+            note_start_seconds = RPR_TimeMap2_beatsToTime(
+                0, float(note_start_beat) - 1.0, absolute_measure - 1
+            )[0]
+        except Exception as position_error:
+            return {
+                "error": "midi_note_position_resolution_failed",
+                "note_index": note_index,
+                "message": str(position_error)
+            }
+
+        if (
+            not math.isfinite(note_start_seconds)
+            or note_start_seconds < measure_start - 1e-9
+            or note_start_seconds >= measure_end - 1e-9
+        ):
+            return {
+                "error": "invalid_midi_note",
+                "note_index": note_index,
+                "field": "start_beat",
+                "message": (
+                    "start_beat is outside the local measure time signature"
+                )
+            }
+
+        try:
+            note_start_qn = RPR_TimeMap2_timeToQN(0, note_start_seconds)
+            note_end_qn = note_start_qn + float(duration_qn)
+            note_end_seconds = RPR_TimeMap2_QNToTime(0, note_end_qn)
+        except Exception as position_error:
+            return {
+                "error": "midi_note_position_resolution_failed",
+                "note_index": note_index,
+                "message": str(position_error)
+            }
+
+        if (
+            note_start_seconds < position_seconds - 1e-9
+            or note_start_seconds >= end_seconds - 1e-9
+            or not math.isfinite(note_end_seconds)
+            or note_end_seconds > end_seconds + 1e-9
+        ):
+            return {
+                "error": "midi_note_outside_item",
+                "note_index": note_index,
+                "message": "note start or end is outside the MIDI item"
+            }
+
         validated_notes.append({
             "pitch": pitch,
             "velocity": velocity,
-            "duration_qn": float(duration_qn)
+            "duration_qn": float(duration_qn),
+            "start_measure": note_start_measure,
+            "start_beat": round(float(note_start_beat), 10),
+            "start_qn": note_start_qn,
+            "end_qn": note_end_qn
         })
 
-    position_seconds = get_measure_boundary(start_measure)
-    end_seconds = get_measure_boundary(end_measure)
-    duration_seconds = end_seconds - position_seconds
-
-    if (
-        not math.isfinite(position_seconds)
-        or not math.isfinite(end_seconds)
-        or duration_seconds <= 0.0
-    ):
-        return {
-            "error": "REAPER returned invalid measure boundary positions"
-        }
-
-    start_qn = RPR_TimeMap2_timeToQN(0, position_seconds)
-    end_qn = RPR_TimeMap2_timeToQN(0, end_seconds)
-    available_duration_qn = end_qn - start_qn
-    required_duration_qn = math.fsum(
-        note["duration_qn"] for note in validated_notes
-    )
-
-    if (
-        not math.isfinite(start_qn)
-        or not math.isfinite(end_qn)
-        or available_duration_qn <= 0.0
-    ):
-        return {"error": "REAPER returned an invalid musical item duration"}
-
-    if required_duration_qn > available_duration_qn + 1e-9:
-        return {
-            "error": "midi_content_exceeds_item",
-            "available_duration_qn": available_duration_qn,
-            "required_duration_qn": required_duration_qn
-        }
+    validated_notes.sort(key=lambda note: (
+        note["start_qn"], note["pitch"], note["end_qn"]
+    ))
 
     conflicts = get_item_conflicts(
         context["track"], position_seconds, end_seconds
@@ -2380,25 +2469,19 @@ def handle_create_midi_item(request):
         if not take or not RPR_TakeIsMIDI(take):
             raise RuntimeError("REAPER failed to initialize the MIDI take")
 
-        current_qn = start_qn
-
         for note in validated_notes:
-            note_end_qn = current_qn + note["duration_qn"]
-
             if not RPR_MIDI_InsertNote(
                 take,
                 False,
                 False,
-                RPR_MIDI_GetPPQPosFromProjQN(take, current_qn),
-                RPR_MIDI_GetPPQPosFromProjQN(take, note_end_qn),
+                RPR_MIDI_GetPPQPosFromProjQN(take, note["start_qn"]),
+                RPR_MIDI_GetPPQPosFromProjQN(take, note["end_qn"]),
                 0,
                 note["pitch"],
                 note["velocity"],
                 True
             ):
                 raise RuntimeError("REAPER failed to insert a MIDI note")
-
-            current_qn = note_end_qn
 
         RPR_MIDI_Sort(take)
         RPR_UpdateArrange()
@@ -2408,7 +2491,6 @@ def handle_create_midi_item(request):
             "end_measure": end_measure,
             "position_seconds": position_seconds,
             "end_seconds": end_seconds,
-            "required_duration_qn": required_duration_qn,
             "available_duration_qn": available_duration_qn,
             "validated_notes": validated_notes
         }, context)
@@ -2458,11 +2540,26 @@ def finalize_create_midi_item(operation, context):
             note_end_qn = RPR_MIDI_GetProjQNFromPPQPos(
                 take, note_info[6]
             )
+            note_start_seconds = RPR_MIDI_GetProjTimeFromPPQPos(
+                take, note_info[5]
+            )
+            note_musical = get_musical_position(
+                note_start_seconds
+            )["musical_position"]
+            relative_start_measure = (
+                note_musical["measure"]
+                - operation["start_measure"]
+                + 1
+            )
             created_notes.append({
                 "note_index": reaper_note_index + 1,
                 "pitch": note_info[8],
                 "note_name": get_midi_note_name(note_info[8]),
                 "velocity": note_info[9],
+                "start_measure": relative_start_measure,
+                "start_beat": round(
+                    note_musical["beat_within_measure"], 10
+                ),
                 "duration_qn": round(note_end_qn - note_start_qn, 10),
                 "start_ppq": note_info[5],
                 "end_ppq": note_info[6]
@@ -2472,6 +2569,19 @@ def finalize_create_midi_item(operation, context):
             notes_match = notes_match and (
                 note_info[8] == expected["pitch"]
                 and note_info[9] == expected["velocity"]
+                and relative_start_measure == expected["start_measure"]
+                and math.isclose(
+                    note_musical["beat_within_measure"],
+                    expected["start_beat"],
+                    rel_tol=1e-9,
+                    abs_tol=1e-9
+                )
+                and math.isclose(
+                    note_start_qn,
+                    expected["start_qn"],
+                    rel_tol=1e-9,
+                    abs_tol=1e-9
+                )
                 and math.isclose(
                     note_end_qn - note_start_qn,
                     expected["duration_qn"],
@@ -2523,7 +2633,6 @@ def finalize_create_midi_item(operation, context):
             "end_seconds": applied_end,
             "duration_seconds": applied_duration,
             "note_count": len(created_notes),
-            "required_duration_qn": operation["required_duration_qn"],
             "available_duration_qn": operation["available_duration_qn"],
             "notes": created_notes,
             "success": True
