@@ -291,7 +291,16 @@
         "Return ordered tempo and time-signature events with one-based indexes, project times, BPM, effective and marker time signatures, and linear-tempo-change state.",
         "Return musical positions derived from REAPER's time-map APIs.",
         "Use REAPER's time-map APIs rather than deriving changes from a single BPM.",
-        "Return an empty event list when no explicit changes exist and do not mutate the tempo map."
+        "Return the effective initial project tempo and time signature when no explicit changes exist and do not mutate the tempo map."
+      ],
+      "bugs": [
+        {
+          "id": "BUG-001",
+          "description": "get_tempo_map returns an empty array when the project has no explicit tempo/time-signature markers instead of returning the effective initial project tempo and time signature as the first entry.",
+          "status": "fixed",
+          "discovered_during": "runtime-validation",
+          "fixed_in": "8abdb2e1fa1007864f7d840986be8a0b8e79e792"
+        }
       ]
     },
     {
