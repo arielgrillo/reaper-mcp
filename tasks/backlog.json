@@ -457,7 +457,7 @@
       "id": "RO-011",
       "category": "read-only",
       "title": "Extend tracks with recording state",
-      "status": "testing",
+      "status": "completed",
       "priority": "high",
       "capability": "get_tracks_recording_state",
       "description": "Extend get_tracks with recording input, arm, and monitoring state.",
