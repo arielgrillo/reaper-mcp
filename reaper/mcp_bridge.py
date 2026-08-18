@@ -666,27 +666,26 @@ def handle_get_track_routing(request):
     }
 
 def handle_get_track_items(request):
-    tracks = []
+    context, error = resolve_track(request)
 
-    for reaper_track_index in range(RPR_CountTracks(0)):
-        track = RPR_GetTrack(0, reaper_track_index)
-        track_index, track_name = get_track_identity(track)
-        item_count = RPR_CountTrackMediaItems(track)
-        items = [
-            get_item_state(
-                RPR_GetTrackMediaItem(track, item_index),
-                item_index + 1
-            )
-            for item_index in range(item_count)
-        ]
-        tracks.append({
-            "track_index": track_index,
-            "track_name": track_name,
-            "item_count": item_count,
-            "items": items
-        })
+    if error is not None:
+        return error
 
-    return {"tracks": tracks}
+    item_count = RPR_CountTrackMediaItems(context["track"])
+    items = [
+        get_item_state(
+            RPR_GetTrackMediaItem(context["track"], item_index),
+            item_index + 1
+        )
+        for item_index in range(item_count)
+    ]
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "item_count": item_count,
+        "items": items
+    }
 
 def handle_get_selected_tracks(request):
     selected_tracks = []

@@ -475,12 +475,21 @@
       "status": "testing",
       "priority": "high",
       "capability": "get_track_items",
-      "description": "Return media items grouped by track.",
+      "description": "Return media items for one validated project track.",
       "depends_on": ["RO-003"],
       "acceptance_criteria": [
-        "Return track and item identities with one-based public indexes.",
+        "Validate a one-based track index and return only that track's identity and items.",
         "Include item start, end, duration, mute, lock, and selection state when available.",
         "Return empty item lists for empty tracks and do not mutate items."
+      ],
+      "bugs": [
+        {
+          "id": "BUG-002",
+          "description": "get_track_items does not accept a track_index and returns items for every track instead of only the requested track.",
+          "status": "fixed",
+          "discovered_during": "runtime-validation",
+          "fixed_in": null
+        }
       ]
     },
     {

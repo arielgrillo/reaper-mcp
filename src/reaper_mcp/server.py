@@ -52,9 +52,12 @@ def get_track_routing(track_index: int) -> dict:
     )
 
 @mcp.tool()
-def get_track_items() -> dict:
-    """Return media items grouped by track."""
-    return send_reaper_command("get_track_items")
+def get_track_items(track_index: int) -> dict:
+    """Return media items for one track."""
+    return send_reaper_command(
+        "get_track_items",
+        track_index=track_index
+    )
 
 @mcp.tool()
 def get_selected_tracks() -> dict:
