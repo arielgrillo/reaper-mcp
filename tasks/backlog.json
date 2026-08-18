@@ -880,9 +880,9 @@
         {
           "id": "BUG-006",
           "description": "Explicit musical note-position validation closed the bridge response without JSON when resolving a note through the REAPER time-map APIs.",
-          "status": "open",
+          "status": "fixed",
           "discovered_during": "runtime-validation",
-          "fixed_in": null
+          "fixed_in": "7a1fd3420da9183f3344895d4979612c6d5ac7ee"
         }
       ]
     }
