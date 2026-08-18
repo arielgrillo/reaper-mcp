@@ -138,6 +138,17 @@ details { border-top: 1px solid var(--line); padding-top: 0.8rem; }
 summary { cursor: pointer; color: #d9d5cb; font-size: 0.86rem; font-weight: 700; }
 .criteria { margin-bottom: 0; padding-left: 1.2rem; color: var(--muted); font-size: 0.86rem; line-height: 1.5; }
 .criteria li + li { margin-top: 0.4rem; }
+.bugs { margin-top: 0.9rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
+.bugs h4 { margin: 0 0 0.6rem; color: #d9d5cb; font-size: 0.86rem; }
+.bug { border: 1px solid var(--line); border-left: 3px solid var(--danger); border-radius: 0.55rem; padding: 0.75rem; background: rgba(239, 125, 114, 0.06); }
+.bug + .bug { margin-top: 0.55rem; }
+.bug-fixed { border-left-color: var(--green); background: var(--green-soft); }
+.bug-topline { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+.bug-topline code, .bug-metadata code { color: var(--blue); }
+.bug-status { border-radius: 99px; padding: 0.2rem 0.5rem; color: var(--danger); background: rgba(239, 125, 114, 0.12); font-size: 0.68rem; font-weight: 800; }
+.bug-status-fixed { color: var(--green); background: var(--green-soft); }
+.bug p { margin: 0.55rem 0 0; color: #d2cfc6; font-size: 0.82rem; line-height: 1.45; }
+.bug .bug-metadata { color: var(--muted); font-size: 0.74rem; }
 .dependencies { margin-top: 0.9rem; color: var(--muted); font-size: 0.78rem; }
 .dependencies code { color: var(--blue); }
 .empty-state, .error-state { padding: 3rem 1rem; text-align: center; color: var(--muted); }

@@ -62,7 +62,8 @@ function populateCategories() {
 
 function matchesFilters(task) {
   const query = state.filters.search.toLowerCase();
-  const searchable = [task.id, task.title, task.capability, task.description].join(" ").toLowerCase();
+  const bugs = (task.bugs ?? []).flatMap(bug => [bug.id, bug.status, bug.description]);
+  const searchable = [task.id, task.title, task.capability, task.description, ...bugs].join(" ").toLowerCase();
   return (!query || searchable.includes(query))
     && (state.filters.status === "all" || task.status === state.filters.status)
     && (state.filters.category === "all" || task.category === state.filters.category)
@@ -95,6 +96,51 @@ function createTaskCard(task) {
     const item = document.createElement("li");
     item.textContent = criterion;
     criteria.append(item);
+  }
+
+  if (task.bugs?.length) {
+    const bugs = document.createElement("section");
+    bugs.className = "bugs";
+
+    const heading = document.createElement("h4");
+    heading.textContent = `Bugs (${task.bugs.length})`;
+    bugs.append(heading);
+
+    for (const bug of task.bugs) {
+      const item = document.createElement("article");
+      item.className = `bug bug-${bug.status}`;
+
+      const topline = document.createElement("div");
+      topline.className = "bug-topline";
+
+      const id = document.createElement("code");
+      id.textContent = bug.id;
+
+      const status = document.createElement("span");
+      status.className = `bug-status bug-status-${bug.status}`;
+      status.textContent = label(bug.status);
+
+      topline.append(id, status);
+
+      const description = document.createElement("p");
+      description.textContent = bug.description;
+
+      const metadata = document.createElement("p");
+      metadata.className = "bug-metadata";
+      metadata.textContent = `Discovered during ${label(bug.discovered_during)}`;
+
+      if (bug.fixed_in) {
+        const separator = document.createTextNode(" · Fixed in ");
+        const commit = document.createElement("code");
+        commit.textContent = bug.fixed_in.slice(0, 7);
+        metadata.append(separator, commit);
+      }
+
+      item.append(topline, description, metadata);
+      bugs.append(item);
+    }
+
+    fragment.querySelector(".dependencies").before(bugs);
   }
 
   const dependencies = fragment.querySelector(".dependencies");
