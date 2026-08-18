@@ -588,8 +588,8 @@
       "description": "Return note events for one validated MIDI take.",
       "depends_on": ["RO-016"],
       "acceptance_criteria": [
-        "Return ordered note events with pitch, channel, velocity, timing, mute, and selection state.",
-        "Expose project-time or musical-time representations through REAPER conversion APIs where reliable.",
+        "Return ordered note events with raw pitch, standard note name, channel, velocity, timing, mute, and selection state.",
+        "Expose project-time and stably rounded human-readable musical positions through REAPER conversion APIs.",
         "Do not modify MIDI notes."
       ]
     },

@@ -112,14 +112,22 @@ def get_musical_position(position_seconds):
         "position_beats": full_beats,
         "musical_position": {
             "measure": measure + 1,
-            "beat": full_beats,
-            "beat_within_measure": beat_within_measure + 1,
+            "beat": round(full_beats, 10),
+            "beat_within_measure": round(beat_within_measure + 1, 10),
             "time_signature": {
                 "numerator": measure_length,
                 "denominator": denominator
             }
         }
     }
+
+def get_midi_note_name(pitch):
+    note_names = (
+        "C", "C#", "D", "D#", "E", "F",
+        "F#", "G", "G#", "A", "A#", "B"
+    )
+    octave = (pitch // 12) - 1
+    return f"{note_names[pitch % 12]}{octave}"
 
 def handle_get_tempo_map(request):
     events = []
@@ -831,6 +839,7 @@ def handle_get_midi_notes(request):
             "duration_seconds": end_seconds - start_seconds,
             "channel": note[7] + 1,
             "pitch": note[8],
+            "note_name": get_midi_note_name(note[8]),
             "velocity": note[9],
             "start_musical_position": start_musical["musical_position"],
             "end_musical_position": end_musical["musical_position"]
