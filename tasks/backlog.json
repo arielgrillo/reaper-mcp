@@ -597,7 +597,7 @@
       "id": "RO-018",
       "category": "read-only",
       "title": "Get track envelopes",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "get_track_envelopes",
       "description": "Return automation envelopes available on one validated track.",
