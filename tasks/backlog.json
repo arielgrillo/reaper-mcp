@@ -567,7 +567,7 @@
       "id": "RO-016",
       "category": "read-only",
       "title": "Get MIDI summary",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "get_midi_summary",
       "description": "Summarize MIDI content for one validated take.",
