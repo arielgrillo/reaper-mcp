@@ -1,5 +1,9 @@
+const AUTO_REFRESH_INTERVAL_MS = 5000;
+const SCROLL_STORAGE_KEY = "reaper-mcp-backlog-scroll-position";
+
 const state = {
   tasks: [],
+  refreshing: false,
   filters: {
     search: "",
     status: "all",
@@ -52,12 +56,19 @@ function renderSummary() {
 
 function populateCategories() {
   const categories = [...new Set(state.tasks.map(task => task.category))].sort();
+  const selectedCategory = elements.category.value;
+  const allOption = elements.category.querySelector('option[value="all"]');
+  elements.category.replaceChildren(allOption);
+
   for (const category of categories) {
     const option = document.createElement("option");
     option.value = category;
     option.textContent = label(category);
     elements.category.append(option);
   }
+
+  elements.category.value = categories.includes(selectedCategory) ? selectedCategory : "all";
+  state.filters.category = elements.category.value;
 }
 
 function matchesFilters(task) {
@@ -178,20 +189,54 @@ function bindFilters() {
   }
 }
 
-async function initialize() {
+function saveScrollPosition() {
+  sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY));
+}
+
+function restoreScrollPosition(position) {
+  requestAnimationFrame(() => window.scrollTo(0, position));
+}
+
+async function refreshBacklog({ preserveScroll = false } = {}) {
+  if (state.refreshing) return;
+
+  state.refreshing = true;
+  const scrollPosition = preserveScroll ? window.scrollY : 0;
+
   try {
-    const response = await fetch("backlog.json");
+    const response = await fetch(`backlog.json?refresh=${Date.now()}`, {
+      cache: "no-store"
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const backlog = await response.json();
     state.tasks = backlog.tasks;
     renderSummary();
     populateCategories();
-    bindFilters();
     renderTasks();
+    elements.errorState.hidden = true;
+
+    if (preserveScroll) restoreScrollPosition(scrollPosition);
   } catch (error) {
     elements.errorState.hidden = false;
     elements.errorState.textContent = `Could not load backlog.json: ${error.message}. Serve this directory through a local web server.`;
+  } finally {
+    state.refreshing = false;
   }
+}
+
+async function initialize() {
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+
+  const savedScrollPosition = Number(sessionStorage.getItem(SCROLL_STORAGE_KEY)) || 0;
+  bindFilters();
+  await refreshBacklog();
+  restoreScrollPosition(savedScrollPosition);
+
+  window.addEventListener("pagehide", saveScrollPosition);
+  window.setInterval(
+    () => refreshBacklog({ preserveScroll: true }),
+    AUTO_REFRESH_INTERVAL_MS
+  );
 }
 
 initialize();
