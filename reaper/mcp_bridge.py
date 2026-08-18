@@ -1965,6 +1965,124 @@ def handle_set_track_solo(request):
         "success": applied_solo == solo
     }
 
+def handle_create_note_item(request):
+    context, error = resolve_track(request)
+
+    if error is not None:
+        return error
+
+    start_measure = request.get("start_measure")
+    duration_measures = request.get("duration_measures")
+    text = request.get("text")
+
+    if (
+        not isinstance(start_measure, int)
+        or isinstance(start_measure, bool)
+        or start_measure < 1
+    ):
+        return {"error": "start_measure must be a 1-based positive integer"}
+
+    if (
+        not isinstance(duration_measures, int)
+        or isinstance(duration_measures, bool)
+        or duration_measures < 1
+    ):
+        return {"error": "duration_measures must be a positive integer"}
+
+    if not isinstance(text, str) or not text.strip():
+        return {"error": "text must be a non-empty string"}
+
+    start_measure_index = start_measure - 1
+    end_measure_index = start_measure_index + duration_measures
+    position_seconds = RPR_TimeMap_GetMeasureInfo(
+        0, start_measure_index, 0.0, 0.0, 0, 0, 0.0
+    )[0]
+    end_seconds = RPR_TimeMap_GetMeasureInfo(
+        0, end_measure_index, 0.0, 0.0, 0, 0, 0.0
+    )[0]
+    duration_seconds = end_seconds - position_seconds
+
+    if (
+        not math.isfinite(position_seconds)
+        or not math.isfinite(end_seconds)
+        or duration_seconds <= 0.0
+    ):
+        return {
+            "error": "REAPER returned invalid measure boundary positions"
+        }
+
+    item = RPR_AddMediaItemToTrack(context["track"])
+
+    if not item:
+        return {"error": "REAPER failed to create the media item"}
+
+    position_written = RPR_SetMediaItemInfo_Value(
+        item, "D_POSITION", position_seconds
+    )
+    length_written = RPR_SetMediaItemInfo_Value(
+        item, "D_LENGTH", duration_seconds
+    )
+    notes_written = RPR_GetSetMediaItemInfo_String(
+        item, "P_NOTES", text, True
+    )[0]
+    RPR_UpdateArrange()
+
+    if not position_written or not length_written or not notes_written:
+        return {"error": "REAPER failed to initialize the note item"}
+
+    item_guid = get_item_identity(item)
+    item_index = None
+
+    for reaper_item_index in range(
+        RPR_CountTrackMediaItems(context["track"])
+    ):
+        candidate = RPR_GetTrackMediaItem(
+            context["track"], reaper_item_index
+        )
+
+        if get_item_identity(candidate) == item_guid:
+            item_index = reaper_item_index + 1
+            break
+
+    applied_position = RPR_GetMediaItemInfo_Value(item, "D_POSITION")
+    applied_duration = RPR_GetMediaItemInfo_Value(item, "D_LENGTH")
+    applied_end = applied_position + applied_duration
+    notes_info = RPR_GetSetMediaItemInfo_String(
+        item, "P_NOTES", "", False
+    )
+    applied_text = notes_info[3]
+    take_count = RPR_CountTakes(item)
+    success = (
+        item_index is not None
+        and bool(item_guid)
+        and bool(notes_info[0])
+        and applied_text == text
+        and take_count == 0
+        and math.isclose(
+            applied_position, position_seconds,
+            rel_tol=1e-9, abs_tol=1e-9
+        )
+        and math.isclose(
+            applied_duration, duration_seconds,
+            rel_tol=1e-9, abs_tol=1e-9
+        )
+    )
+
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "item_index": item_index,
+        "item_guid": item_guid,
+        "text": applied_text,
+        "start_measure": start_measure,
+        "duration_measures": duration_measures,
+        "position_seconds": applied_position,
+        "end_seconds": applied_end,
+        "duration_seconds": applied_duration,
+        "take_count": take_count,
+        "success": success
+    }
+
 def handle_get_fx_presets(request):
     fx_context, error = resolve_track_fx(request)
 
@@ -2051,6 +2169,7 @@ COMMAND_HANDLERS = {
     "set_track_pan": handle_set_track_pan,
     "set_track_mute": handle_set_track_mute,
     "set_track_solo": handle_set_track_solo,
+    "create_note_item": handle_create_note_item,
 }
 
 loop()

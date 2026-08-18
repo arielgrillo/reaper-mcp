@@ -811,6 +811,22 @@
         "Perform only the requested solo-state change through the bridge.",
         "Read solo state back and report requested and applied values."
       ]
+    },
+    {
+      "id": "WR-007",
+      "category": "mutation",
+      "title": "Create note item",
+      "status": "testing",
+      "priority": "medium",
+      "capability": "create_note_item",
+      "description": "Create an empty media item with human-readable notes on one validated track using musical measure boundaries.",
+      "depends_on": ["RO-012"],
+      "acceptance_criteria": [
+        "Validate the one-based track and start measure, positive measure duration, and non-blank note text before mutation.",
+        "Convert exact start and end measure boundaries through REAPER time-map APIs and create no take or source.",
+        "Store text in P_NOTES and report success only after item identity, position, length, take count, and notes read-back are valid."
+      ],
+      "bugs": []
     }
   ]
 }

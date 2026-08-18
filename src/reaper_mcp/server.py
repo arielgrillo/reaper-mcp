@@ -315,6 +315,22 @@ def set_track_solo(track_index: int, solo: bool) -> dict:
     )
 
 @mcp.tool()
+def create_note_item(
+    track_index: int,
+    start_measure: int,
+    duration_measures: int,
+    text: str
+) -> dict:
+    """Create an empty item with notes at exact measure boundaries."""
+    return send_reaper_command(
+        "create_note_item",
+        track_index=track_index,
+        start_measure=start_measure,
+        duration_measures=duration_measures,
+        text=text
+    )
+
+@mcp.tool()
 def ping() -> str:
     """Simple MCP connectivity test."""
     return "pong"
