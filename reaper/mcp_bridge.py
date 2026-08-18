@@ -718,10 +718,10 @@ def handle_get_item_info(request):
         **item_state,
         "take_count": take_count,
         "active_take_name": (
-            RPR_GetTakeName(active_take) if active_take else None
+            RPR_GetTakeName(active_take) if take_count > 0 else None
         ),
         "active_source_type": (
-            get_take_source_type(active_take) if active_take else None
+            get_take_source_type(active_take) if take_count > 0 else None
         )
     }
 
