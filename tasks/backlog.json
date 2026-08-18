@@ -527,7 +527,7 @@
       "id": "RO-014",
       "category": "read-only",
       "title": "Get item information",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "get_item_info",
       "description": "Inspect one media item selected by track and item index.",
