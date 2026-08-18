@@ -816,7 +816,7 @@
       "id": "WR-007",
       "category": "mutation",
       "title": "Create note item",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "create_note_item",
       "description": "Create an empty media item with human-readable notes on one validated track using musical measure boundaries.",
