@@ -619,8 +619,17 @@
       "depends_on": ["RO-018"],
       "acceptance_criteria": [
         "Validate track and envelope indexes with structured errors.",
-        "Return ordered points with time, value, shape, tension, and selection state.",
+        "Return ordered points with raw time, musical position, raw and REAPER-formatted values, shape, tension, and selection state.",
         "Do not insert, delete, or modify envelope points."
+      ],
+      "bugs": [
+        {
+          "id": "BUG-004",
+          "description": "get_envelope_points formats a Volume envelope point at 4.0 seconds as +57.1dB even though REAPER displays the point as 0.00 dB, because the raw point value is not being interpreted with the envelope's effective formatting semantics.",
+          "status": "fixed",
+          "discovered_during": "runtime-validation",
+          "fixed_in": null
+        }
       ]
     },
     {

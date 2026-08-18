@@ -942,13 +942,24 @@ def handle_get_envelope_points(request):
         )
 
         if point[0]:
+            evaluated = RPR_Envelope_Evaluate(
+                envelope, point[3], 0.0, 0,
+                0.0, 0.0, 0.0, 0.0
+            )
+            formatted_value = RPR_Envelope_FormatValue(
+                envelope, evaluated[5], "", 512
+            )[2]
             points.append({
                 "point_index": reaper_point_index + 1,
                 "time_seconds": point[3],
                 "value_raw": point[4],
+                "formatted_value": formatted_value,
                 "shape_raw": point[5],
                 "tension": point[6],
-                "selected": bool(point[7])
+                "selected": bool(point[7]),
+                "musical_position": get_musical_position(
+                    point[3]
+                )["musical_position"]
             })
 
     metadata = get_envelope_metadata(
