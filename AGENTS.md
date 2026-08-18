@@ -180,6 +180,16 @@ uv add <dependency>
 
 Do not manually manage a separate `pip` requirements workflow unless the project explicitly changes away from `uv`.
 
+## Developer Tooling
+
+Launch MCP Inspector from the repository root with:
+
+```text
+powershell -ExecutionPolicy Bypass -File scripts/start_mcp_inspector.ps1
+```
+
+Inspector remains responsible for starting the configured stdio MCP server.
+
 ## REAPER ReaScript Environment
 
 Files under `reaper/` run inside REAPER.
