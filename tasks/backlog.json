@@ -120,6 +120,15 @@
         "Load tasks directly from tasks/backlog.json through a local static web server.",
         "Show overall progress, summary metrics, task cards, acceptance criteria, and dependencies.",
         "Support search plus status, category, and priority filters."
+      ],
+      "bugs": [
+        {
+          "id": "BUG-007",
+          "description": "The visualizer crashes while rendering a valid backlog task whose optional capability field is absent.",
+          "status": "open",
+          "discovered_during": "runtime-validation",
+          "fixed_in": null
+        }
       ]
     },
     {

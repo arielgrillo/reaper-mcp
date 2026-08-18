@@ -188,7 +188,13 @@ function createTaskCard(task) {
   fragment.querySelector(".task-description").textContent = task.description;
 
   const meta = fragment.querySelector(".task-meta");
-  for (const value of [task.category, `${task.priority} priority`, task.capability]) {
+  const metadata = [
+    task.category,
+    `${task.priority} priority`,
+    task.capability
+  ].filter(value => typeof value === "string" && value.length > 0);
+
+  for (const value of metadata) {
     const pill = document.createElement("span");
     pill.className = "meta-pill";
     pill.textContent = label(value);
