@@ -872,7 +872,7 @@
           "description": "The initial runtime creation failure left its newly created empty MIDI item on the target track instead of removing it atomically.",
           "status": "fixed",
           "discovered_during": "runtime-validation",
-          "fixed_in": null
+          "fixed_in": "81145f2a4f564488f01595afd8340a818ace39e3"
         }
       ]
     }
