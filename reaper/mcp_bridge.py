@@ -125,6 +125,34 @@ def handle_get_tempo_map(request):
     events = []
     marker_count = RPR_CountTempoTimeSigMarkers(0)
 
+    if marker_count == 0:
+        project_time_signature = RPR_GetProjectTimeSignature2(
+            0,
+            0,
+            0
+        )
+        effective_time_signature = RPR_TimeMap_GetTimeSigAtTime(
+            0,
+            0.0,
+            0,
+            0,
+            0.0
+        )
+        musical = get_musical_position(0.0)
+
+        events.append({
+            "index": 1,
+            "position_seconds": 0.0,
+            "bpm": project_time_signature[1],
+            "numerator": effective_time_signature[2],
+            "denominator": effective_time_signature[3],
+            "marker_numerator": None,
+            "marker_denominator": None,
+            "linear_tempo_change": None,
+            "position_beats": musical["position_beats"],
+            "musical_position": musical["musical_position"]
+        })
+
     for reaper_index in range(marker_count):
         marker_info = RPR_GetTempoTimeSigMarker(
             0,
