@@ -121,6 +121,53 @@ def get_musical_position(position_seconds):
         }
     }
 
+def handle_get_tempo_map(request):
+    events = []
+    marker_count = RPR_CountTempoTimeSigMarkers(0)
+
+    for reaper_index in range(marker_count):
+        marker_info = RPR_GetTempoTimeSigMarker(
+            0,
+            reaper_index,
+            0.0,
+            0,
+            0.0,
+            0.0,
+            0,
+            0,
+            False
+        )
+
+        if not marker_info[0]:
+            continue
+
+        position_seconds = marker_info[3]
+        effective_time_signature = RPR_TimeMap_GetTimeSigAtTime(
+            0,
+            position_seconds,
+            0,
+            0,
+            0.0
+        )
+        musical = get_musical_position(position_seconds)
+
+        events.append({
+            "index": reaper_index + 1,
+            "position_seconds": position_seconds,
+            "bpm": marker_info[6],
+            "numerator": effective_time_signature[2],
+            "denominator": effective_time_signature[3],
+            "marker_numerator": marker_info[7],
+            "marker_denominator": marker_info[8],
+            "linear_tempo_change": bool(marker_info[9]),
+            "position_beats": musical["position_beats"],
+            "musical_position": musical["musical_position"]
+        })
+
+    return {
+        "events": events
+    }
+
 def handle_get_markers_regions(request):
     markers = []
     regions = []
@@ -927,6 +974,7 @@ def loop():
 COMMAND_HANDLERS = {
     "get_track_count": handle_get_track_count,
     "get_project_info": handle_get_project_info,
+    "get_tempo_map": handle_get_tempo_map,
     "get_markers_regions": handle_get_markers_regions,
     "get_tracks": handle_get_tracks,
     "get_track_fx": handle_get_track_fx,

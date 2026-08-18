@@ -282,13 +282,14 @@
       "id": "RO-009",
       "category": "read-only",
       "title": "Get tempo map",
-      "status": "pending",
+      "status": "completed",
       "priority": "high",
       "capability": "get_tempo_map",
       "description": "Return tempo and time-signature changes from the active project.",
       "depends_on": ["RO-002"],
       "acceptance_criteria": [
-        "Return ordered tempo and time-signature events with project times and musical positions.",
+        "Return ordered tempo and time-signature events with one-based indexes, project times, BPM, effective and marker time signatures, and linear-tempo-change state.",
+        "Return musical positions derived from REAPER's time-map APIs.",
         "Use REAPER's time-map APIs rather than deriving changes from a single BPM.",
         "Return an empty event list when no explicit changes exist and do not mutate the tempo map."
       ]
