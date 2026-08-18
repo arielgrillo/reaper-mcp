@@ -496,7 +496,7 @@
       "id": "RO-013",
       "category": "read-only",
       "title": "Get selected tracks",
-      "status": "testing",
+      "status": "completed",
       "priority": "medium",
       "capability": "get_selected_tracks",
       "description": "Return tracks currently selected in REAPER.",
