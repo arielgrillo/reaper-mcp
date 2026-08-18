@@ -15,9 +15,17 @@
           <p class="subtitle">A live view of completed and planned project capabilities.</p>
         </div>
         <div class="progress-card" aria-label="Completion progress">
-          <div class="progress-copy">
-            <span>Overall progress</span>
-            <strong id="progress-label">Loading…</strong>
+          <div class="progress-header">
+            <div class="progress-copy">
+              <span>Overall progress</span>
+              <strong id="progress-label">Loading…</strong>
+            </div>
+            <div class="refresh-countdown" title="Time until automatic refresh">
+              <span id="refresh-ring" class="refresh-ring" aria-hidden="true">
+                <strong id="refresh-seconds">5</strong>
+              </span>
+              <span class="sr-only" aria-live="polite">Automatic refresh countdown</span>
+            </div>
           </div>
           <div class="progress-track" aria-hidden="true">
             <div id="progress-bar" class="progress-bar"></div>

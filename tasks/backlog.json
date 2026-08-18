@@ -243,6 +243,21 @@
       ]
     },
     {
+      "id": "TL-013",
+      "category": "tooling",
+      "title": "Backlog refresh visibility and intake workflow",
+      "status": "testing",
+      "priority": "medium",
+      "capability": "backlog_refresh_and_intake_workflow",
+      "description": "Improve refresh feedback and task-panel continuity while ensuring new repository work is represented in the backlog before implementation.",
+      "depends_on": ["TL-008", "TL-010"],
+      "acceptance_criteria": [
+        "Show a compact countdown indicator driven by the existing automatic refresh interval and reset it after refresh.",
+        "Preserve expanded task sections across automatic and manual refreshes without corrupting state during filtering.",
+        "Require Codex to reuse or create an appropriately categorized backlog ticket before implementing requested work."
+      ]
+    },
+    {
       "id": "DX-001",
       "category": "diagnostic",
       "title": "MCP connectivity ping",

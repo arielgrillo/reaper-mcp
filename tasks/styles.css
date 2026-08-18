@@ -71,8 +71,24 @@ h1 {
 }
 
 .progress-card { padding: 1.15rem; border-radius: 0.85rem; }
+.progress-header { display: flex; align-items: center; gap: 0.9rem; }
+.progress-copy { flex: 1; }
 .progress-copy { display: flex; justify-content: space-between; gap: 1rem; color: var(--muted); }
 .progress-copy strong { color: var(--text); }
+.refresh-countdown { display: flex; align-items: center; color: var(--muted); }
+.refresh-ring {
+  --refresh-progress: 1turn;
+  position: relative;
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) var(--refresh-progress), #30302e 0);
+}
+.refresh-ring::after { position: absolute; inset: 3px; border-radius: inherit; background: var(--surface); content: ""; }
+.refresh-ring strong { position: relative; z-index: 1; color: var(--text); font-size: 0.72rem; }
 .progress-track { height: 0.55rem; margin-top: 0.9rem; overflow: hidden; border-radius: 99px; background: #30302e; }
 .progress-bar { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), #ffd079); transition: width 300ms ease; }
 

@@ -330,6 +330,34 @@ For MCP-facing changes, validate through the MCP Inspector when practical.
 
 ## Development Workflow
 
+### Backlog Intake
+
+`tasks/backlog.json` is the source of truth for repository task tracking.
+
+Before implementing a requested change:
+
+1. inspect the backlog for an existing task that represents the work;
+2. use the existing task when one matches;
+3. otherwise create a task with the next stable ID for an existing category before implementation begins.
+
+When creating a task:
+
+* infer the category only when the request makes it clear, and tell the user which existing category was selected;
+* if the category is ambiguous, ask the user to choose from the categories already present in the backlog;
+* do not invent a new category silently; when no category fits, ask whether one should be created;
+* set the initial status to `pending`;
+* include an ID, category, title, priority, description, dependencies, and observable acceptance criteria;
+* include a capability name when applicable and a bugs array when consistent with the current backlog schema;
+* do not duplicate an existing task.
+
+Use these task status semantics:
+
+* `pending`: implementation is not complete;
+* `testing`: implementation and automated validation are complete and required deployment succeeded, but user/runtime acceptance is pending;
+* `completed`: the user explicitly accepted the behavior.
+
+Never move newly implemented work directly from `pending` to `completed`.
+
 When implementing a new capability:
 
 1. inspect the existing code first;

@@ -1,9 +1,12 @@
 const AUTO_REFRESH_INTERVAL_MS = 5000;
 const SCROLL_STORAGE_KEY = "reaper-mcp-backlog-scroll-position";
+const EXPANSION_STORAGE_KEY = "reaper-mcp-backlog-expanded-sections";
 
 const state = {
   tasks: [],
   refreshing: false,
+  nextRefreshAt: 0,
+  openTaskSections: new Set(),
   openBugPanels: new Set(),
   filters: {
     search: "",
@@ -17,6 +20,8 @@ const elements = {
   summary: document.querySelector("#summary"),
   progressBar: document.querySelector("#progress-bar"),
   progressLabel: document.querySelector("#progress-label"),
+  refreshRing: document.querySelector("#refresh-ring"),
+  refreshSeconds: document.querySelector("#refresh-seconds"),
   search: document.querySelector("#search"),
   status: document.querySelector("#status-filter"),
   category: document.querySelector("#category-filter"),
@@ -105,6 +110,13 @@ function createTaskCard(task) {
     meta.append(pill);
   }
 
+  const criteriaPanel = fragment.querySelector("details");
+  criteriaPanel.className = "criteria-panel";
+  criteriaPanel.open = state.openTaskSections.has(task.id);
+  criteriaPanel.addEventListener("toggle", () => {
+    updateExpandedSet(state.openTaskSections, task.id, criteriaPanel.open);
+  });
+
   const criteria = fragment.querySelector(".criteria");
   for (const criterion of task.acceptance_criteria) {
     const item = document.createElement("li");
@@ -117,11 +129,7 @@ function createTaskCard(task) {
     bugs.className = "bugs";
     bugs.open = state.openBugPanels.has(task.id);
     bugs.addEventListener("toggle", () => {
-      if (bugs.open) {
-        state.openBugPanels.add(task.id);
-      } else {
-        state.openBugPanels.delete(task.id);
-      }
+      updateExpandedSet(state.openBugPanels, task.id, bugs.open);
     });
 
     const heading = document.createElement("summary");
@@ -204,8 +212,71 @@ function saveScrollPosition() {
   sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY));
 }
 
+function updateExpandedSet(expandedSet, taskId, isOpen) {
+  if (isOpen) {
+    expandedSet.add(taskId);
+  } else {
+    expandedSet.delete(taskId);
+  }
+
+  saveExpansionState();
+}
+
+function saveExpansionState() {
+  sessionStorage.setItem(EXPANSION_STORAGE_KEY, JSON.stringify({
+    taskSections: [...state.openTaskSections],
+    bugPanels: [...state.openBugPanels]
+  }));
+}
+
+function restoreExpansionState() {
+  try {
+    const savedState = JSON.parse(
+      sessionStorage.getItem(EXPANSION_STORAGE_KEY) ?? "{}"
+    );
+    state.openTaskSections = new Set(savedState.taskSections ?? []);
+    state.openBugPanels = new Set(savedState.bugPanels ?? []);
+  } catch {
+    state.openTaskSections.clear();
+    state.openBugPanels.clear();
+  }
+}
+
+function pruneExpansionState() {
+  const taskIds = new Set(state.tasks.map(task => task.id));
+  state.openTaskSections = new Set(
+    [...state.openTaskSections].filter(taskId => taskIds.has(taskId))
+  );
+  state.openBugPanels = new Set(
+    [...state.openBugPanels].filter(taskId => taskIds.has(taskId))
+  );
+  saveExpansionState();
+}
+
 function restoreScrollPosition(position) {
   requestAnimationFrame(() => window.scrollTo(0, position));
+}
+
+function resetRefreshCountdown() {
+  state.nextRefreshAt = Date.now() + AUTO_REFRESH_INTERVAL_MS;
+}
+
+function runRefreshLoop() {
+  const remainingMilliseconds = Math.max(0, state.nextRefreshAt - Date.now());
+  const progress = remainingMilliseconds / AUTO_REFRESH_INTERVAL_MS;
+  elements.refreshRing.style.setProperty(
+    "--refresh-progress",
+    `${progress}turn`
+  );
+  elements.refreshSeconds.textContent = String(
+    Math.max(0, Math.ceil(remainingMilliseconds / 1000))
+  );
+
+  if (remainingMilliseconds === 0 && !state.refreshing) {
+    refreshBacklog({ preserveScroll: true });
+  }
+
+  requestAnimationFrame(runRefreshLoop);
 }
 
 async function refreshBacklog({ preserveScroll = false } = {}) {
@@ -221,6 +292,7 @@ async function refreshBacklog({ preserveScroll = false } = {}) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const backlog = await response.json();
     state.tasks = backlog.tasks;
+    pruneExpansionState();
     renderSummary();
     populateCategories();
     renderTasks();
@@ -232,6 +304,7 @@ async function refreshBacklog({ preserveScroll = false } = {}) {
     elements.errorState.textContent = `Could not load backlog.json: ${error.message}. Serve this directory through a local web server.`;
   } finally {
     state.refreshing = false;
+    resetRefreshCountdown();
   }
 }
 
@@ -239,15 +312,16 @@ async function initialize() {
   if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 
   const savedScrollPosition = Number(sessionStorage.getItem(SCROLL_STORAGE_KEY)) || 0;
+  restoreExpansionState();
   bindFilters();
   await refreshBacklog();
   restoreScrollPosition(savedScrollPosition);
 
-  window.addEventListener("pagehide", saveScrollPosition);
-  window.setInterval(
-    () => refreshBacklog({ preserveScroll: true }),
-    AUTO_REFRESH_INTERVAL_MS
-  );
+  window.addEventListener("pagehide", () => {
+    saveScrollPosition();
+    saveExpansionState();
+  });
+  requestAnimationFrame(runRefreshLoop);
 }
 
 initialize();
