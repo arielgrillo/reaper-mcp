@@ -823,8 +823,11 @@
       "depends_on": ["RO-012"],
       "acceptance_criteria": [
         "Validate the one-based track and start measure, positive measure duration, and non-blank note text before mutation.",
-        "Convert exact start and end measure boundaries through REAPER time-map APIs and create no take or source.",
-        "Store text in P_NOTES and report success only after item identity, position, length, take count, and notes read-back are valid."
+        "Resolve exact start and end measure boundaries through REAPER time-map APIs.",
+        "Create an empty MediaItem with the requested P_NOTES text and no take or source.",
+        "Report success only after item identity, position, length, take count, and notes read-back are valid.",
+        "Reject overlap with any existing MediaItem on the target track without modifying existing items.",
+        "Allow adjacent items whose ranges only touch at their boundaries."
       ],
       "bugs": []
     }

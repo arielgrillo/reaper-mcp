@@ -2011,6 +2011,47 @@ def handle_create_note_item(request):
             "error": "REAPER returned invalid measure boundary positions"
         }
 
+    conflicts = []
+
+    for reaper_item_index in range(
+        RPR_CountTrackMediaItems(context["track"])
+    ):
+        existing_item = RPR_GetTrackMediaItem(
+            context["track"], reaper_item_index
+        )
+        existing = get_item_state(
+            existing_item, reaper_item_index + 1
+        )
+
+        if (
+            position_seconds < existing["end_seconds"]
+            and end_seconds > existing["position_seconds"]
+        ):
+            conflicts.append({
+                "item_index": existing["item_index"],
+                "item_guid": existing["guid"],
+                "position_seconds": existing["position_seconds"],
+                "end_seconds": existing["end_seconds"],
+                "start_measure": existing["start_measure"],
+                "start_beat": existing["start_beat"],
+                "end_measure": existing["end_measure"],
+                "end_beat": existing["end_beat"]
+            })
+
+    if conflicts:
+        return {
+            "error": "item_overlap",
+            "requested_range": {
+                "start_measure": start_measure,
+                "end_measure": start_measure + duration_measures,
+                "duration_measures": duration_measures,
+                "position_seconds": position_seconds,
+                "end_seconds": end_seconds,
+                "duration_seconds": duration_seconds
+            },
+            "conflicts": conflicts
+        }
+
     item = RPR_AddMediaItemToTrack(context["track"])
 
     if not item:
