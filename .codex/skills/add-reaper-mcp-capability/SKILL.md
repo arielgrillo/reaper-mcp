@@ -224,14 +224,53 @@ Do not introduce:
 
 Prefer the existing architecture and the smallest useful change.
 
+## Backlog Intake
+
+Follow the repository backlog intake rules defined in `AGENTS.md`.
+
+Before implementing a capability:
+
+* use the matching existing backlog task when one exists;
+* if no matching task exists, create one according to the repository backlog intake rules before implementation;
+* keep the capability task synchronized throughout implementation and validation.
+
 ## Backlog Update
 
-Whenever a capability is added, completed, renamed, or materially changed:
+Whenever a capability is added, implemented, accepted, renamed, or materially changed:
 
 * inspect `tasks/backlog.json`;
 * update the corresponding task;
-* mark it completed only when the implementation exists and validation succeeds;
+* move implemented capabilities to `testing` after implementation, automated validation, and required deployment succeed;
+* do not mark capabilities `completed` automatically;
 * preserve stable task IDs;
 * do not create duplicate capability entries;
 * validate the JSON after editing;
 * include the backlog update in the same commit when it belongs to the same capability task.
+
+## Bug Tracking
+
+When runtime validation reveals a defect in an existing capability:
+
+* record the bug under the capability's `bugs` array in `tasks/backlog.json`;
+* assign a stable `BUG-*` ID;
+* keep the capability task separate from the bug status;
+* mark the bug `fixed` only after the fix passes relevant validation;
+* record the fixing commit in `fixed_in` when available;
+* do not create a duplicate capability task for a bug.
+
+## Backlog Status Semantics
+
+Capability task statuses are:
+
+* `pending`: implementation has not been completed.
+* `testing`: implementation is complete, automated validation has passed, and required deployment has succeeded, but runtime acceptance is still pending.
+* `completed`: runtime behavior has been reviewed and explicitly accepted by the user.
+
+When implementing a capability:
+
+* move the task from `pending` to `testing` only after implementation, automated validation, and required deployment succeed;
+* do not mark a capability `completed` automatically;
+* keep the capability in `testing` while runtime validation is pending;
+* keep the capability in `testing` when runtime validation reveals an unresolved bug;
+* mark the capability `completed` only after explicit user approval;
+* preserve any associated bug history when moving between statuses.

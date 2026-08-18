@@ -11,3 +11,4 @@ wheels/
 
 # REAPER project autosaves
 /example/reaper_test/AutoSaves/
+/example/reaper_test/Backups/

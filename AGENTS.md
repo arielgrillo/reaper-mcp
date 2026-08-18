@@ -79,50 +79,14 @@ COMMAND_HANDLERS = {
 * dispatching to the handler;
 * returning a clear error for unknown commands.
 
-## Current Capabilities
+## Implemented Capabilities
 
-The project currently includes or is expected to preserve:
+Do not maintain a capability inventory in this file.
 
-* `ping`
-* `get_track_count`
-* `get_project_info`
-* `get_tracks`
+Use the implementation as the source of truth for available MCP tools.
 
-### `get_project_info`
-
-Returns basic information about the active REAPER project, including:
-
-* project name;
-* track count;
-* tempo;
-* transport/play state.
-
-### `get_tracks`
-
-Returns information about tracks in the active project.
-
-Preserve both raw REAPER values and human-readable representations when both are useful.
-
-Current track information includes:
-
-* index;
-* name;
-* mute state;
-* solo state;
-* raw volume;
-* volume in dB;
-* raw pan;
-* pan percentage;
-* pan direction;
-* folder hierarchy information.
-
-Folder hierarchy should expose useful derived information such as:
-
-* `folder_depth`;
-* `is_folder`;
-* `is_nested`;
-* `parent_index`;
-* `parent_name`.
+Use `README.md` as the current user/developer tool reference and
+`tasks/backlog.json` for capability status and planned work.
 
 ## REAPER Values
 
