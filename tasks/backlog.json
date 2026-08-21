@@ -996,7 +996,7 @@
       "id": "WR-012",
       "category": "mutation",
       "title": "Create named normal track",
-      "status": "testing",
+      "status": "completed",
       "priority": "high",
       "capability": "create_named_track",
       "description": "Create one named normal track at a deterministic project position.",
