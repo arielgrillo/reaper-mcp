@@ -1045,7 +1045,7 @@
       "id": "WR-015",
       "category": "mutation",
       "title": "Manage track folder hierarchy",
-      "status": "pending",
+      "status": "testing",
       "priority": "medium",
       "capability": "track_folder_hierarchy",
       "description": "Prepare native REAPER track folder hierarchy so tracks can act as folders and contain child tracks while preserving unrelated hierarchy.",

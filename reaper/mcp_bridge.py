@@ -843,6 +843,96 @@ def handle_rename_track(request):
         "track_name": applied_name, "success": True
     }
 
+def handle_set_track_folder(request):
+    folder_track_index = request.get("folder_track_index")
+    last_child_track_index = request.get("last_child_track_index")
+    track_count = RPR_CountTracks(0)
+
+    for field_name, value in (
+        ("folder_track_index", folder_track_index),
+        ("last_child_track_index", last_child_track_index)
+    ):
+        if not isinstance(value, int) or isinstance(value, bool):
+            return {"error": f"{field_name} must be a 1-based integer"}
+        if value < 1 or value > track_count:
+            return {
+                "error": (
+                    f"{field_name} {value} is out of range; "
+                    f"project has {track_count} tracks"
+                )
+            }
+
+    if last_child_track_index <= folder_track_index:
+        return {
+            "error": (
+                "last_child_track_index must identify a track after "
+                "folder_track_index"
+            )
+        }
+
+    tracks_before = handle_get_tracks({})["tracks"]
+    target_tracks = tracks_before[
+        folder_track_index - 1:last_child_track_index
+    ]
+    if any(track["folder_depth"] != 0 for track in target_tracks):
+        return {
+            "error": (
+                "Target tracks must not already participate in a folder "
+                "hierarchy"
+            )
+        }
+    if any(track["is_nested"] for track in target_tracks):
+        return {
+            "error": "Target tracks must be top-level tracks"
+        }
+
+    folder_track = RPR_GetTrack(0, folder_track_index - 1)
+    last_child_track = RPR_GetTrack(0, last_child_track_index - 1)
+    folder_set = bool(RPR_SetMediaTrackInfo_Value(
+        folder_track, "I_FOLDERDEPTH", 1
+    ))
+    child_end_set = bool(RPR_SetMediaTrackInfo_Value(
+        last_child_track, "I_FOLDERDEPTH", -1
+    ))
+
+    tracks_after = handle_get_tracks({})["tracks"]
+    folder_after = tracks_after[folder_track_index - 1]
+    children_after = tracks_after[
+        folder_track_index:last_child_track_index
+    ]
+    verified = (
+        folder_set and child_end_set
+        and folder_after["folder_depth"] == 1
+        and folder_after["is_folder"]
+        and len(children_after) == (
+            last_child_track_index - folder_track_index
+        )
+        and all(
+            child["parent_index"] == folder_track_index
+            for child in children_after
+        )
+        and children_after[-1]["folder_depth"] == -1
+    )
+    if not verified:
+        folder_restored = bool(RPR_SetMediaTrackInfo_Value(
+            folder_track, "I_FOLDERDEPTH", 0
+        ))
+        child_restored = bool(RPR_SetMediaTrackInfo_Value(
+            last_child_track, "I_FOLDERDEPTH", 0
+        ))
+        return {
+            "error": "Track folder read-back verification failed",
+            "rollback_succeeded": folder_restored and child_restored,
+            "tracks_read_back": tracks_after
+        }
+
+    RPR_TrackList_AdjustWindows(False)
+    return {
+        "folder": folder_after,
+        "children": children_after,
+        "success": True
+    }
+
 def get_track_identity(track):
     if not track:
         return None, None
@@ -3604,6 +3694,7 @@ COMMAND_HANDLERS = {
     "get_tracks": handle_get_tracks,
     "create_named_track": handle_create_named_track,
     "rename_track": handle_rename_track,
+    "set_track_folder": handle_set_track_folder,
     "get_track_routing": handle_get_track_routing,
     "get_track_items": handle_get_track_items,
     "get_selected_tracks": handle_get_selected_tracks,

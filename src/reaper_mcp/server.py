@@ -232,6 +232,17 @@ def rename_track(track_index: int, new_name: str) -> dict:
     )
 
 @mcp.tool()
+def set_track_folder(
+    folder_track_index: int, last_child_track_index: int
+) -> dict:
+    """Make one top-level track a folder containing following tracks."""
+    return send_reaper_command(
+        "set_track_folder",
+        folder_track_index=folder_track_index,
+        last_child_track_index=last_child_track_index
+    )
+
+@mcp.tool()
 def get_track_fx() -> dict:
     """Return the FX chains for all tracks in the current REAPER project."""
     return send_reaper_command("get_track_fx")
