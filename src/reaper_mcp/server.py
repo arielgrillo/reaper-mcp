@@ -232,14 +232,21 @@ def rename_track(track_index: int, new_name: str) -> dict:
     )
 
 @mcp.tool()
-def set_track_folder(
-    folder_track_index: int, last_child_track_index: int
-) -> dict:
-    """Make one top-level track a folder containing following tracks."""
+def create_track_folder(name: str, children: list[str]) -> dict:
+    """Create one native folder track with ordered named child tracks."""
     return send_reaper_command(
-        "set_track_folder",
-        folder_track_index=folder_track_index,
-        last_child_track_index=last_child_track_index
+        "create_track_folder", name=name, children=children
+    )
+
+@mcp.tool()
+def move_track_into_folder(
+    track_index: int, folder_track_index: int
+) -> dict:
+    """Move one top-level normal track into a top-level folder."""
+    return send_reaper_command(
+        "move_track_into_folder",
+        track_index=track_index,
+        folder_track_index=folder_track_index
     )
 
 @mcp.tool()

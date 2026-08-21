@@ -1048,13 +1048,13 @@
       "status": "testing",
       "priority": "medium",
       "capability": "track_folder_hierarchy",
-      "description": "Prepare native REAPER track folder hierarchy so tracks can act as folders and contain child tracks while preserving unrelated hierarchy.",
+      "description": "Create native REAPER folder tracks with ordered named children and move existing tracks into existing folders while preserving unrelated hierarchy.",
       "depends_on": ["RO-003", "WR-012"],
       "acceptance_criteria": [
-        "Support a normal track acting as a native REAPER folder with one or more child tracks.",
-        "Support placing or reparenting existing tracks into a folder without disturbing unrelated track hierarchy.",
-        "Use REAPER's native folder semantics rather than introducing a separate grouping model, bulk template behavior, or routing semantics.",
-        "Determine from future evidence whether folder creation and moving or reparenting tracks require separate public operations."
+        "Create exactly one native REAPER folder with one or more ordered named child tracks and verified hierarchy read-back.",
+        "Move an existing top-level normal track to the end of an existing top-level folder while preserving its existing children.",
+        "Preserve unrelated track ordering and hierarchy without exposing folder-depth or last-child range arithmetic to MCP callers.",
+        "Use native REAPER folder semantics without adding routing, FX, recording configuration, templates, or arbitrary nested-tree orchestration."
       ],
       "bugs": []
     }
