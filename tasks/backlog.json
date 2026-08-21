@@ -1012,7 +1012,7 @@
       "id": "WR-013",
       "category": "mutation",
       "title": "Rename normal track",
-      "status": "testing",
+      "status": "completed",
       "priority": "high",
       "capability": "rename_track",
       "description": "Rename one existing index-identified normal track without changing its other state.",
