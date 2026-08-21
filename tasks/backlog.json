@@ -972,7 +972,7 @@
       "id": "WR-011",
       "category": "mutation",
       "title": "Create project region",
-      "status": "testing",
+      "status": "completed",
       "priority": "high",
       "capability": "create_region",
       "description": "Create one explicitly named project region using exclusive one-based measure boundaries.",
@@ -986,8 +986,9 @@
         {
           "id": "BUG-008",
           "description": "create_region rolls back a successfully created valid region after its read-back comparison fails for the requested measure range, without reporting which returned field differed.",
-          "status": "open",
-          "discovered_during": "runtime-validation"
+          "status": "fixed",
+          "discovered_during": "runtime-validation",
+          "fixed_in": "56e8cc8d0e5e980cc2f1d67349ba6a100c581a2a"
         }
       ]
     },
