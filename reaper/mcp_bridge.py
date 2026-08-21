@@ -444,27 +444,47 @@ def handle_create_region(request):
     if region_number < 0:
         return {"error": "REAPER failed to create the region"}
 
+    regions = handle_get_markers_regions({})["regions"]
+
+    def region_matches(candidate):
+        return (
+            candidate["name"] == name
+            and math.isclose(
+                candidate["start_seconds"], start_seconds,
+                rel_tol=1e-9, abs_tol=1e-7
+            )
+            and math.isclose(
+                candidate["end_seconds"], end_seconds,
+                rel_tol=1e-9, abs_tol=1e-7
+            )
+        )
+
     created = next((
-        region for region in handle_get_markers_regions({})["regions"]
+        region for region in regions
         if region["region_number"] == region_number
+        and region_matches(region)
     ), None)
-    if (
-        created is None or created["name"] != name
-        or not math.isclose(
-            created["start_seconds"], start_seconds,
-            rel_tol=1e-9, abs_tol=1e-9
-        )
-        or not math.isclose(
-            created["end_seconds"], end_seconds,
-            rel_tol=1e-9, abs_tol=1e-9
-        )
-    ):
+
+    if created is None:
+        matching_regions = [
+            region for region in regions if region_matches(region)
+        ]
+        if len(matching_regions) == 1:
+            created = matching_regions[0]
+
+    if created is None:
         rollback_succeeded = bool(
             RPR_DeleteProjectMarker(0, region_number, True)
         )
         return {
             "error": "Region read-back verification failed",
             "region_number": region_number,
+            "expected": {
+                "name": name,
+                "start_seconds": start_seconds,
+                "end_seconds": end_seconds
+            },
+            "regions_read_back": regions,
             "rollback_succeeded": rollback_succeeded
         }
     RPR_UpdateTimeline()
