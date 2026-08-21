@@ -982,7 +982,14 @@
         "Convert musical boundaries through REAPER's time map and create exactly one region without changing unrelated events.",
         "Return the created region number and verified time and musical boundaries."
       ],
-      "bugs": []
+      "bugs": [
+        {
+          "id": "BUG-008",
+          "description": "create_region rolls back a successfully created valid region after its read-back comparison fails for the requested measure range, without reporting which returned field differed.",
+          "status": "open",
+          "discovered_during": "runtime-validation"
+        }
+      ]
     },
     {
       "id": "WR-012",
