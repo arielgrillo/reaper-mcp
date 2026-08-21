@@ -156,8 +156,17 @@ def get_midi_pitch(note_name):
 def handle_get_tempo_map(request):
     events = []
     marker_count = RPR_CountTempoTimeSigMarkers(0)
+    has_initial_marker = False
 
-    if marker_count == 0:
+    if marker_count > 0:
+        first_marker = RPR_GetTempoTimeSigMarker(
+            0, 0, 0.0, 0, 0.0, 0.0, 0, 0, False
+        )
+        has_initial_marker = first_marker[0] and math.isclose(
+            first_marker[3], 0.0, rel_tol=0.0, abs_tol=1e-9
+        )
+
+    if not has_initial_marker:
         project_time_signature = RPR_GetProjectTimeSignature2(
             0,
             0,
@@ -212,7 +221,7 @@ def handle_get_tempo_map(request):
         musical = get_musical_position(position_seconds)
 
         events.append({
-            "index": reaper_index + 1,
+            "index": len(events) + 1,
             "position_seconds": position_seconds,
             "bpm": marker_info[6],
             "numerator": effective_time_signature[2],
@@ -226,6 +235,113 @@ def handle_get_tempo_map(request):
 
     return {
         "events": events
+    }
+
+def get_initial_tempo_state():
+    initial_event = handle_get_tempo_map({})["events"][0]
+    return {
+        "bpm": initial_event["bpm"],
+        "numerator": initial_event["numerator"],
+        "denominator": initial_event["denominator"]
+    }
+
+def find_initial_tempo_marker():
+    for reaper_index in range(RPR_CountTempoTimeSigMarkers(0)):
+        marker = RPR_GetTempoTimeSigMarker(
+            0, reaper_index, 0.0, 0, 0.0, 0.0, 0, 0, False
+        )
+        if marker[0] and math.isclose(
+            marker[3], 0.0, rel_tol=0.0, abs_tol=1e-9
+        ):
+            return reaper_index, marker
+    return None, None
+
+def handle_set_project_tempo(request):
+    bpm = request.get("bpm")
+    if (
+        not isinstance(bpm, (int, float)) or isinstance(bpm, bool)
+        or not math.isfinite(bpm) or bpm < 1.0 or bpm > 960.0
+    ):
+        return {"error": "bpm must be a finite number from 1 to 960"}
+
+    bpm = float(bpm)
+    marker_index, marker = find_initial_tempo_marker()
+    if marker is None:
+        RPR_SetCurrentBPM(0, bpm, True)
+        mutation = "project_default"
+    else:
+        updated = RPR_SetTempoTimeSigMarker(
+            0, marker_index, marker[3], -1, -1.0, bpm,
+            marker[7], marker[8], marker[9]
+        )
+        if not updated:
+            return {"error": "REAPER failed to update the initial tempo"}
+        mutation = "initial_marker"
+
+    applied = get_initial_tempo_state()
+    if not math.isclose(
+        applied["bpm"], bpm, rel_tol=1e-9, abs_tol=1e-9
+    ):
+        return {
+            "error": "Initial tempo read-back verification failed",
+            "requested_bpm": bpm, "applied": applied
+        }
+    RPR_UpdateTimeline()
+    return {
+        "requested_bpm": bpm, "mutation": mutation,
+        "applied": applied, "success": True
+    }
+
+def handle_set_project_time_signature(request):
+    numerator = request.get("numerator")
+    denominator = request.get("denominator")
+    if (
+        not isinstance(numerator, int) or isinstance(numerator, bool)
+        or numerator < 1 or numerator > 255
+    ):
+        return {"error": "numerator must be an integer from 1 to 255"}
+    if (
+        not isinstance(denominator, int) or isinstance(denominator, bool)
+        or denominator < 1 or denominator > 64
+        or denominator & (denominator - 1)
+    ):
+        return {
+            "error": "denominator must be a power-of-two integer from 1 to 64"
+        }
+
+    initial = get_initial_tempo_state()
+    marker_index, marker = find_initial_tempo_marker()
+    if marker is None:
+        marker_index = -1
+        time_position, measure_position, beat_position = 0.0, -1, -1.0
+        marker_bpm, linear = initial["bpm"], False
+        mutation = "inserted_initial_marker"
+    else:
+        time_position, measure_position, beat_position = marker[3], -1, -1.0
+        marker_bpm, linear = marker[6], marker[9]
+        mutation = "initial_marker"
+
+    updated = RPR_SetTempoTimeSigMarker(
+        0, marker_index, time_position, measure_position, beat_position,
+        marker_bpm, numerator, denominator, linear
+    )
+    if not updated:
+        return {"error": "REAPER failed to update the initial time signature"}
+
+    applied = get_initial_tempo_state()
+    if (
+        applied["numerator"] != numerator
+        or applied["denominator"] != denominator
+    ):
+        return {
+            "error": "Initial time-signature read-back verification failed",
+            "requested": {"numerator": numerator, "denominator": denominator},
+            "applied": applied
+        }
+    RPR_UpdateTimeline()
+    return {
+        "requested": {"numerator": numerator, "denominator": denominator},
+        "mutation": mutation, "applied": applied, "success": True
     }
 
 def handle_get_markers_regions(request):
@@ -294,6 +410,68 @@ def handle_get_markers_regions(request):
     return {
         "markers": markers,
         "regions": regions
+    }
+
+def handle_create_region(request):
+    name = request.get("name")
+    start_measure = request.get("start_measure")
+    end_measure = request.get("end_measure")
+    if not isinstance(name, str) or not name.strip():
+        return {"error": "name must be a non-blank string"}
+    name = name.strip()
+    if len(name) > 255:
+        return {"error": "name must not exceed 255 characters"}
+    if (
+        not isinstance(start_measure, int) or isinstance(start_measure, bool)
+        or start_measure < 1
+    ):
+        return {"error": "start_measure must be a positive integer"}
+    if (
+        not isinstance(end_measure, int) or isinstance(end_measure, bool)
+        or end_measure < 1
+    ):
+        return {"error": "end_measure must be a positive integer"}
+    if end_measure <= start_measure:
+        return {"error": "end_measure must be greater than start_measure"}
+
+    start_seconds = get_measure_boundary(start_measure)
+    end_seconds = get_measure_boundary(end_measure)
+    if end_seconds <= start_seconds:
+        return {"error": "REAPER resolved an invalid region time range"}
+    region_number = RPR_AddProjectMarker2(
+        0, True, start_seconds, end_seconds, name, -1, 0
+    )
+    if region_number < 0:
+        return {"error": "REAPER failed to create the region"}
+
+    created = next((
+        region for region in handle_get_markers_regions({})["regions"]
+        if region["region_number"] == region_number
+    ), None)
+    if (
+        created is None or created["name"] != name
+        or not math.isclose(
+            created["start_seconds"], start_seconds,
+            rel_tol=1e-9, abs_tol=1e-9
+        )
+        or not math.isclose(
+            created["end_seconds"], end_seconds,
+            rel_tol=1e-9, abs_tol=1e-9
+        )
+    ):
+        rollback_succeeded = bool(
+            RPR_DeleteProjectMarker(0, region_number, True)
+        )
+        return {
+            "error": "Region read-back verification failed",
+            "region_number": region_number,
+            "rollback_succeeded": rollback_succeeded
+        }
+    RPR_UpdateTimeline()
+    return {
+        "requested": {"name": name, "start_measure": start_measure,
+                      "end_measure": end_measure},
+        "region": created, "success": True
     }
 
 def handle_get_tracks(request):
@@ -373,6 +551,82 @@ def handle_get_tracks(request):
 
     return {
         "tracks": tracks
+    }
+
+def validate_track_name(request, field_name="name"):
+    name = request.get(field_name)
+    if not isinstance(name, str) or not name.strip():
+        return None, {"error": f"{field_name} must be a non-blank string"}
+    name = name.strip()
+    if len(name) > 255:
+        return None, {"error": f"{field_name} must not exceed 255 characters"}
+    return name, None
+
+def handle_create_named_track(request):
+    name, error = validate_track_name(request)
+    if error is not None:
+        return error
+    track_count = RPR_CountTracks(0)
+    track_index = request.get("track_index")
+    if track_index is None:
+        track_index = track_count + 1
+    elif (
+        not isinstance(track_index, int) or isinstance(track_index, bool)
+        or track_index < 1 or track_index > track_count + 1
+    ):
+        return {
+            "error": (
+                "track_index must be a 1-based insertion position from 1 "
+                f"to {track_count + 1}"
+            )
+        }
+
+    RPR_InsertTrackAtIndex(track_index - 1, True)
+    if RPR_CountTracks(0) != track_count + 1:
+        return {"error": "REAPER failed to create exactly one track"}
+    track = RPR_GetTrack(0, track_index - 1)
+    named = RPR_GetSetMediaTrackInfo_String(track, "P_NAME", name, True)
+    applied_index, applied_name = get_track_identity(track)
+    if not named[0] or applied_index != track_index or applied_name != name:
+        RPR_DeleteTrack(track)
+        return {
+            "error": "Track name read-back verification failed",
+            "rollback_succeeded": RPR_CountTracks(0) == track_count
+        }
+    RPR_TrackList_AdjustWindows(False)
+    return {
+        "track_index": applied_index, "track_name": applied_name,
+        "insertion": "append" if track_index == track_count + 1 else "explicit",
+        "success": True
+    }
+
+def handle_rename_track(request):
+    context, error = resolve_track(request)
+    if error is not None:
+        return error
+    new_name, error = validate_track_name(request, "new_name")
+    if error is not None:
+        return error
+    previous_name = context["track_name"]
+    renamed = RPR_GetSetMediaTrackInfo_String(
+        context["track"], "P_NAME", new_name, True
+    )
+    applied_index, applied_name = get_track_identity(context["track"])
+    if (
+        not renamed[0] or applied_index != context["track_index"]
+        or applied_name != new_name
+    ):
+        restored = RPR_GetSetMediaTrackInfo_String(
+            context["track"], "P_NAME", previous_name, True
+        )
+        return {
+            "error": "Track rename read-back verification failed",
+            "rollback_succeeded": bool(restored[0])
+        }
+    RPR_TrackList_AdjustWindows(False)
+    return {
+        "track_index": applied_index, "previous_name": previous_name,
+        "track_name": applied_name, "success": True
     }
 
 def get_track_identity(track):
@@ -3128,8 +3382,13 @@ COMMAND_HANDLERS = {
     "get_track_count": handle_get_track_count,
     "get_project_info": handle_get_project_info,
     "get_tempo_map": handle_get_tempo_map,
+    "set_project_tempo": handle_set_project_tempo,
+    "set_project_time_signature": handle_set_project_time_signature,
     "get_markers_regions": handle_get_markers_regions,
+    "create_region": handle_create_region,
     "get_tracks": handle_get_tracks,
+    "create_named_track": handle_create_named_track,
+    "rename_track": handle_rename_track,
     "get_track_routing": handle_get_track_routing,
     "get_track_items": handle_get_track_items,
     "get_selected_tracks": handle_get_selected_tracks,

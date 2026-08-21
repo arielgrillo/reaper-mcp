@@ -951,6 +951,70 @@
         "Preserve the current visualizer design language and responsive layout."
       ],
       "bugs": []
+    },
+    {
+      "id": "WR-010",
+      "category": "mutation",
+      "title": "Set initial project tempo and time signature",
+      "status": "testing",
+      "priority": "high",
+      "capability": "set_project_tempo_and_time_signature",
+      "description": "Set the effective initial project tempo or time signature independently while preserving the other component and unrelated tempo-map events.",
+      "depends_on": ["RO-009"],
+      "acceptance_criteria": [
+        "Expose separate validated operations for finite BPM and positive integer time-signature values without clamping.",
+        "Update only the requested initial component without creating an unnecessary duplicate marker.",
+        "Read the applied initial state back and return the verified tempo and time signature."
+      ],
+      "bugs": []
+    },
+    {
+      "id": "WR-011",
+      "category": "mutation",
+      "title": "Create project region",
+      "status": "testing",
+      "priority": "high",
+      "capability": "create_region",
+      "description": "Create one explicitly named project region using exclusive one-based measure boundaries.",
+      "depends_on": ["RO-008", "RO-009"],
+      "acceptance_criteria": [
+        "Validate a non-blank name and strictly increasing positive integer measure boundaries.",
+        "Convert musical boundaries through REAPER's time map and create exactly one region without changing unrelated events.",
+        "Return the created region number and verified time and musical boundaries."
+      ],
+      "bugs": []
+    },
+    {
+      "id": "WR-012",
+      "category": "mutation",
+      "title": "Create named normal track",
+      "status": "testing",
+      "priority": "high",
+      "capability": "create_named_track",
+      "description": "Create one named normal track at a deterministic project position.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Create exactly one normal track with a non-blank explicit name.",
+        "Append by default or insert at an optional validated one-based position.",
+        "Read the resulting track index and name back before reporting success."
+      ],
+      "bugs": []
+    },
+    {
+      "id": "WR-013",
+      "category": "mutation",
+      "title": "Rename normal track",
+      "status": "testing",
+      "priority": "high",
+      "capability": "rename_track",
+      "description": "Rename one existing index-identified normal track without changing its other state.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Resolve one unambiguous one-based track target and validate a non-blank new name.",
+        "Change only the requested track name.",
+        "Read the resulting track identity and name back before reporting success."
+      ],
+      "bugs": []
     }
   ]
 }

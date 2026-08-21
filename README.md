@@ -110,6 +110,9 @@ most include additional identity and raw/readable fields useful to clients.
 | `get_project_info` | Read-only | none | Inspect active project name, track count, tempo, and transport state. | Project identity and basic state. | `{}` |
 | `get_markers_regions` | Read-only | none | Return project markers and regions in timeline order. | `events` with type, index/ID, names, seconds, and musical positions. | `{}` |
 | `get_tempo_map` | Read-only | none | Return the effective initial tempo/time signature and exposed changes without inventing defaults. | Timeline-ordered `events` with BPM, signature, linear-change state, and musical position. | `{}` |
+| `set_project_tempo` | Mutation | `bpm: float` | Set the effective initial tempo from 1 through 960 BPM while preserving its time signature and later events. | Requested BPM, mutation mode, and verified initial tempo/signature. | `{"bpm": 100.0}` |
+| `set_project_time_signature` | Mutation | `numerator: int`, `denominator: int` | Set the effective initial meter; denominator must be a power of two from 1 through 64. When no initial marker exists, REAPER requires inserting one at time zero. | Requested meter, mutation mode, and verified initial tempo/signature. | `{"numerator": 4, "denominator": 4}` |
+| `create_region` | Mutation | `name: str`, `start_measure: int`, exclusive `end_measure: int` | Create one named region at exact positive one-based measure boundaries. | Assigned region number plus verified seconds and musical boundaries. | `{"name": "COUNTERPOINT EXPLORE", "start_measure": 1, "end_measure": 9}` |
 | `get_project_time_selection` | Read-only | none | Inspect the project time selection. | Start, end, duration, active state, and musical positions. | `{}` |
 | `get_cursor_position` | Read-only | none | Inspect the edit cursor. | Seconds and REAPER-derived musical position. | `{}` |
 | `get_current_context` | Read-only | none | Combine selected tracks, cursor, and time-selection context. | `selected_tracks`, `cursor`, and `time_selection`. | `{}` |
@@ -120,6 +123,8 @@ most include additional identity and raw/readable fields useful to clients.
 | Tool | Mode | Input | Purpose and constraints | Response summary | Example request |
 | --- | --- | --- | --- | --- | --- |
 | `get_tracks` | Read-only | none | Inspect all normal tracks and folder hierarchy. | `tracks` with names, mute/solo, raw+dB volume, pan, channels, and folder ancestry. | `{}` |
+| `create_named_track` | Mutation | `name: str`, optional `track_index?: int` | Create exactly one normal named track; append by default or insert at a valid one-based position. | Verified track index, name, and insertion mode. | `{"name": "Bass"}` |
+| `rename_track` | Mutation | `track_index: int`, `new_name: str` | Rename one existing index-identified track without changing its other state. | Track index plus previous and verified new names. | `{"track_index": 2, "new_name": "Guitar"}` |
 | `get_track_routing` | Read-only | `track_index: int` | Inspect sends, receives, and hardware outputs for one valid track. | Explicit source/destination identities, raw/readable gain and pan, audio/MIDI routing, and mute state. | `{"track_index": 2}` |
 | `get_track_channels` | Read-only | none | Inspect channel counts for all normal tracks. | Track identities and channel configuration. | `{}` |
 | `get_master_track` | Read-only | none | Inspect master mix and channel state. | Master identity, mute/solo, raw+dB volume, pan, and channels. | `{}` |
@@ -242,6 +247,11 @@ earlier responses.
 - All mutations resolve and validate their explicit track/FX/item targets.
 - Values are checked before mutation and read back before success is reported.
 - Inputs outside supported ranges are errors rather than silently clamped.
+- Initial tempo and meter writes preserve later tempo-map events. Setting meter
+  inserts a time-zero marker only when the project has no initial marker,
+  because REAPER stores an explicit time-signature change in a tempo marker.
+- Region boundaries are one-based project measures and `end_measure` is
+  exclusive. Track creation appends unless a valid insertion index is supplied.
 - New note and MIDI items reject overlap; boundary-touching items are valid.
 - Failed MIDI-item creation cleans up a partially created item.
 - MIDI replacement is explicitly destructive, validates before clearing, and

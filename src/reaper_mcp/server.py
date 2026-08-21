@@ -172,6 +172,50 @@ def get_tempo_map() -> dict:
     return send_reaper_command("get_tempo_map")
 
 @mcp.tool()
+def set_project_tempo(bpm: float) -> dict:
+    """Set and verify the effective initial project tempo in BPM."""
+    return send_reaper_command("set_project_tempo", bpm=bpm)
+
+@mcp.tool()
+def set_project_time_signature(
+    numerator: int, denominator: int
+) -> dict:
+    """Set and verify the effective initial project time signature."""
+    return send_reaper_command(
+        "set_project_time_signature",
+        numerator=numerator,
+        denominator=denominator
+    )
+
+@mcp.tool()
+def create_region(
+    name: str, start_measure: int, end_measure: int
+) -> dict:
+    """Create a named region using exclusive one-based measure boundaries."""
+    return send_reaper_command(
+        "create_region",
+        name=name,
+        start_measure=start_measure,
+        end_measure=end_measure
+    )
+
+@mcp.tool()
+def create_named_track(
+    name: str, track_index: int | None = None
+) -> dict:
+    """Create one named normal track, appending it unless an index is given."""
+    return send_reaper_command(
+        "create_named_track", name=name, track_index=track_index
+    )
+
+@mcp.tool()
+def rename_track(track_index: int, new_name: str) -> dict:
+    """Rename one existing track identified by its one-based index."""
+    return send_reaper_command(
+        "rename_track", track_index=track_index, new_name=new_name
+    )
+
+@mcp.tool()
 def get_track_fx() -> dict:
     """Return the FX chains for all tracks in the current REAPER project."""
     return send_reaper_command("get_track_fx")
