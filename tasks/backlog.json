@@ -956,7 +956,7 @@
       "id": "WR-010",
       "category": "mutation",
       "title": "Set initial project tempo and time signature",
-      "status": "testing",
+      "status": "completed",
       "priority": "high",
       "capability": "set_project_tempo_and_time_signature",
       "description": "Set the effective initial project tempo or time signature independently while preserving the other component and unrelated tempo-map events.",
