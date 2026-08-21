@@ -190,7 +190,6 @@ def set_project_time_signature(
 @mcp.tool()
 def set_tempo_map_event(
     measure: int,
-    beat: float = 1.0,
     bpm: float | None = None,
     numerator: int | None = None,
     denominator: int | None = None
@@ -199,7 +198,6 @@ def set_tempo_map_event(
     return send_reaper_command(
         "set_tempo_map_event",
         measure=measure,
-        beat=beat,
         bpm=bpm,
         numerator=numerator,
         denominator=denominator

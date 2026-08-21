@@ -112,7 +112,7 @@ most include additional identity and raw/readable fields useful to clients.
 | `get_tempo_map` | Read-only | none | Return the effective initial tempo/time signature and exposed changes without inventing defaults. | Timeline-ordered `events` with BPM, signature, linear-change state, and musical position. | `{}` |
 | `set_project_tempo` | Mutation | `bpm: float` | Set the effective initial tempo from 1 through 960 BPM while preserving its time signature and later events. | Requested BPM, mutation mode, and verified initial tempo/signature. | `{"bpm": 100.0}` |
 | `set_project_time_signature` | Mutation | `numerator: int`, `denominator: int` | Set the effective initial meter; denominator must be a power of two from 1 through 64. When no initial marker exists, REAPER requires inserting one at time zero. | Requested meter, mutation mode, and verified initial tempo/signature. | `{"numerator": 4, "denominator": 4}` |
-| `set_tempo_map_event` | Mutation | `measure: int`, optional `beat: float = 1.0`, `bpm?: float`, `numerator?: int`, `denominator?: int` | Create or update one non-linear internal tempo-map event. Provide BPM, a complete time signature, or both; meter changes require beat 1. The initial position and linear ramps are rejected. | Created/updated mode plus requested values and verified event state. | `{"measure": 9, "numerator": 7, "denominator": 8}` |
+| `set_tempo_map_event` | Mutation | `measure: int`, `bpm?: float`, `numerator?: int`, `denominator?: int` | Create or update one non-linear tempo-map event at beat 1 of an internal measure. Provide BPM, a complete time signature, or both. The initial measure and linear ramps are rejected. | Created/updated mode plus requested values and verified event state. | `{"measure": 9, "numerator": 7, "denominator": 8}` |
 | `create_region` | Mutation | `name: str`, `start_measure: int`, exclusive `end_measure: int` | Create one named region at exact positive one-based measure boundaries. | Assigned region number plus verified seconds and musical boundaries. | `{"name": "COUNTERPOINT EXPLORE", "start_measure": 1, "end_measure": 9}` |
 | `get_project_time_selection` | Read-only | none | Inspect the project time selection. | Start, end, duration, active state, and musical positions. | `{}` |
 | `get_cursor_position` | Read-only | none | Inspect the edit cursor. | Seconds and REAPER-derived musical position. | `{}` |
@@ -252,8 +252,8 @@ earlier responses.
   inserts a time-zero marker only when the project has no initial marker,
   because REAPER stores an explicit time-signature change in a tempo marker.
 - Internal tempo-map writes create or update only the event at the requested
-  musical position and preserve omitted tempo or meter state. They do not
-  support gradual/linear tempo changes.
+  measure start and preserve omitted tempo or meter state. They do not expose
+  a beat parameter or support gradual/linear tempo changes.
 - Region boundaries are one-based project measures and `end_measure` is
   exclusive. Track creation appends unless a valid insertion index is supplied.
 - New note and MIDI items reject overlap; boundary-touching items are valid.

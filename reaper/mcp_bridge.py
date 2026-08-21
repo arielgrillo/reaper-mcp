@@ -256,20 +256,13 @@ def find_initial_tempo_marker():
             return reaper_index, marker
     return None, None
 
-def resolve_tempo_map_position(measure, beat):
+def resolve_tempo_map_position(measure):
     if (
         not isinstance(measure, int) or isinstance(measure, bool)
         or measure < 1
     ):
         return None, {"error": "measure must be a 1-based positive integer"}
-    if (
-        not isinstance(beat, (int, float)) or isinstance(beat, bool)
-        or not math.isfinite(beat) or beat < 1.0
-    ):
-        return None, {"error": "beat must be a finite number of at least 1"}
-    if measure == 1 and math.isclose(
-        beat, 1.0, rel_tol=0.0, abs_tol=1e-9
-    ):
+    if measure == 1:
         return None, {
             "error": (
                 "The initial project position must be changed with "
@@ -277,21 +270,12 @@ def resolve_tempo_map_position(measure, beat):
             )
         }
 
-    measure_start = get_measure_boundary(measure)
-    measure_end = get_measure_boundary(measure + 1)
-    position_seconds = RPR_TimeMap2_beatsToTime(
-        0, float(beat) - 1.0, measure - 1
-    )[0]
-    if (
-        not math.isfinite(position_seconds)
-        or position_seconds < measure_start - 1e-9
-        or position_seconds >= measure_end - 1e-9
-    ):
-        return None, {"error": "beat is outside the local time signature"}
+    position_seconds = get_measure_boundary(measure)
+    if not math.isfinite(position_seconds):
+        return None, {"error": "REAPER returned an invalid measure boundary"}
 
     return {
         "measure": measure,
-        "beat": float(beat),
         "position_seconds": position_seconds
     }, None
 
@@ -327,12 +311,19 @@ def get_effective_bpm_at_position(position_seconds):
 
 def handle_set_tempo_map_event(request):
     measure = request.get("measure")
-    beat = request.get("beat", 1.0)
     bpm = request.get("bpm")
     numerator = request.get("numerator")
     denominator = request.get("denominator")
 
-    position, error = resolve_tempo_map_position(measure, beat)
+    if "beat" in request:
+        return {
+            "error": (
+                "beat is not supported; tempo-map events are placed at "
+                "beat 1 of the requested measure"
+            )
+        }
+
+    position, error = resolve_tempo_map_position(measure)
     if error is not None:
         return error
 
@@ -360,13 +351,6 @@ def handle_set_tempo_map_event(request):
         }
     if bpm is None and numerator is None:
         return {"error": "Provide bpm, a time signature, or both"}
-    if numerator is not None and not math.isclose(
-        beat, 1.0, rel_tol=0.0, abs_tol=1e-9
-    ):
-        return {
-            "error": "Time-signature changes must start at beat 1 of a measure"
-        }
-
     marker_index, marker, error = find_tempo_marker_at_position(
         position["position_seconds"]
     )
@@ -398,7 +382,7 @@ def handle_set_tempo_map_event(request):
     )
     reaper_marker_index = marker_index if marker is not None else -1
     updated = RPR_SetTempoTimeSigMarker(
-        0, reaper_marker_index, -1.0, measure - 1, float(beat) - 1.0,
+        0, reaper_marker_index, -1.0, measure - 1, 0.0,
         applied_bpm, applied_numerator, applied_denominator, False
     )
     if not updated:
@@ -452,7 +436,6 @@ def handle_set_tempo_map_event(request):
         "operation": "updated" if marker is not None else "created",
         "requested": {
             "measure": measure,
-            "beat": float(beat),
             "bpm": bpm,
             "numerator": numerator,
             "denominator": denominator

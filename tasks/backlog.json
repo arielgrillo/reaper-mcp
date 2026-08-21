@@ -1031,10 +1031,10 @@
       "status": "testing",
       "priority": "medium",
       "capability": "set_tempo_map_event",
-      "description": "Create or modify tempo and/or time-signature information at a specific musical position while preserving unrelated tempo-map events.",
+      "description": "Create or modify tempo and/or time-signature information at the start of a specific internal measure while preserving unrelated tempo-map events.",
       "depends_on": ["RO-009", "WR-010"],
       "acceptance_criteria": [
-        "Support internal project tempo changes, time-signature changes, or both at a validated musical position without changing the effective initial context unless explicitly targeted.",
+        "Support internal project tempo changes, time-signature changes, or both at beat 1 of a validated measure without changing the effective initial context.",
         "Preserve unrelated tempo-map events and return enough resulting state for validation through get_tempo_map.",
         "Expose one focused create-or-update operation rather than generic tempo-map CRUD.",
         "Do not assume gradual tempo changes or ramps share this capability; define their semantics separately if future evidence requires them."
