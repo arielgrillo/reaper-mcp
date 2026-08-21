@@ -1028,15 +1028,15 @@
       "id": "WR-014",
       "category": "mutation",
       "title": "Set internal tempo-map events",
-      "status": "pending",
+      "status": "testing",
       "priority": "medium",
-      "capability": "internal_tempo_map_events",
+      "capability": "set_tempo_map_event",
       "description": "Create or modify tempo and/or time-signature information at a specific musical position while preserving unrelated tempo-map events.",
       "depends_on": ["RO-009", "WR-010"],
       "acceptance_criteria": [
         "Support internal project tempo changes, time-signature changes, or both at a validated musical position without changing the effective initial context unless explicitly targeted.",
         "Preserve unrelated tempo-map events and return enough resulting state for validation through get_tempo_map.",
-        "Determine the smallest public operation shape from future evidence without expanding into generic tempo-map CRUD.",
+        "Expose one focused create-or-update operation rather than generic tempo-map CRUD.",
         "Do not assume gradual tempo changes or ramps share this capability; define their semantics separately if future evidence requires them."
       ],
       "bugs": []

@@ -256,6 +256,211 @@ def find_initial_tempo_marker():
             return reaper_index, marker
     return None, None
 
+def resolve_tempo_map_position(measure, beat):
+    if (
+        not isinstance(measure, int) or isinstance(measure, bool)
+        or measure < 1
+    ):
+        return None, {"error": "measure must be a 1-based positive integer"}
+    if (
+        not isinstance(beat, (int, float)) or isinstance(beat, bool)
+        or not math.isfinite(beat) or beat < 1.0
+    ):
+        return None, {"error": "beat must be a finite number of at least 1"}
+    if measure == 1 and math.isclose(
+        beat, 1.0, rel_tol=0.0, abs_tol=1e-9
+    ):
+        return None, {
+            "error": (
+                "The initial project position must be changed with "
+                "set_project_tempo or set_project_time_signature"
+            )
+        }
+
+    measure_start = get_measure_boundary(measure)
+    measure_end = get_measure_boundary(measure + 1)
+    position_seconds = RPR_TimeMap2_beatsToTime(
+        0, float(beat) - 1.0, measure - 1
+    )[0]
+    if (
+        not math.isfinite(position_seconds)
+        or position_seconds < measure_start - 1e-9
+        or position_seconds >= measure_end - 1e-9
+    ):
+        return None, {"error": "beat is outside the local time signature"}
+
+    return {
+        "measure": measure,
+        "beat": float(beat),
+        "position_seconds": position_seconds
+    }, None
+
+def find_tempo_marker_at_position(position_seconds):
+    matches = []
+    for reaper_index in range(RPR_CountTempoTimeSigMarkers(0)):
+        marker = RPR_GetTempoTimeSigMarker(
+            0, reaper_index, 0.0, 0, 0.0, 0.0, 0, 0, False
+        )
+        if marker[0] and math.isclose(
+            marker[3], position_seconds, rel_tol=1e-9, abs_tol=1e-7
+        ):
+            matches.append((reaper_index, marker))
+
+    if len(matches) > 1:
+        return None, None, {
+            "error": "Multiple tempo-map events resolve to the requested position"
+        }
+    if not matches:
+        return None, None, None
+    return matches[0][0], matches[0][1], None
+
+def get_effective_bpm_at_position(position_seconds):
+    effective_bpm = RPR_GetProjectTimeSignature2(0, 0, 0)[1]
+    for reaper_index in range(RPR_CountTempoTimeSigMarkers(0)):
+        marker = RPR_GetTempoTimeSigMarker(
+            0, reaper_index, 0.0, 0, 0.0, 0.0, 0, 0, False
+        )
+        if not marker[0] or marker[3] > position_seconds + 1e-7:
+            break
+        effective_bpm = marker[6]
+    return effective_bpm
+
+def handle_set_tempo_map_event(request):
+    measure = request.get("measure")
+    beat = request.get("beat", 1.0)
+    bpm = request.get("bpm")
+    numerator = request.get("numerator")
+    denominator = request.get("denominator")
+
+    position, error = resolve_tempo_map_position(measure, beat)
+    if error is not None:
+        return error
+
+    if bpm is not None and (
+        not isinstance(bpm, (int, float)) or isinstance(bpm, bool)
+        or not math.isfinite(bpm) or bpm < 1.0 or bpm > 960.0
+    ):
+        return {"error": "bpm must be a finite number from 1 to 960"}
+    if (numerator is None) != (denominator is None):
+        return {
+            "error": "numerator and denominator must be provided together"
+        }
+    if numerator is not None and (
+        not isinstance(numerator, int) or isinstance(numerator, bool)
+        or numerator < 1 or numerator > 255
+    ):
+        return {"error": "numerator must be an integer from 1 to 255"}
+    if denominator is not None and (
+        not isinstance(denominator, int) or isinstance(denominator, bool)
+        or denominator < 1 or denominator > 64
+        or denominator & (denominator - 1)
+    ):
+        return {
+            "error": "denominator must be a power-of-two integer from 1 to 64"
+        }
+    if bpm is None and numerator is None:
+        return {"error": "Provide bpm, a time signature, or both"}
+    if numerator is not None and not math.isclose(
+        beat, 1.0, rel_tol=0.0, abs_tol=1e-9
+    ):
+        return {
+            "error": "Time-signature changes must start at beat 1 of a measure"
+        }
+
+    marker_index, marker, error = find_tempo_marker_at_position(
+        position["position_seconds"]
+    )
+    if error is not None:
+        return error
+    if marker is not None and bool(marker[9]):
+        return {
+            "error": (
+                "Linear tempo-change markers are outside this capability"
+            )
+        }
+
+    effective_signature = RPR_TimeMap_GetTimeSigAtTime(
+        0, position["position_seconds"], 0, 0, 0.0
+    )
+    effective_bpm = get_effective_bpm_at_position(
+        position["position_seconds"]
+    )
+    applied_bpm = float(bpm) if bpm is not None else (
+        marker[6] if marker is not None else effective_bpm
+    )
+    applied_numerator = numerator if numerator is not None else (
+        marker[7] if marker is not None and marker[7] > 0
+        else effective_signature[2]
+    )
+    applied_denominator = denominator if denominator is not None else (
+        marker[8] if marker is not None and marker[8] > 0
+        else effective_signature[3]
+    )
+    reaper_marker_index = marker_index if marker is not None else -1
+    updated = RPR_SetTempoTimeSigMarker(
+        0, reaper_marker_index, -1.0, measure - 1, float(beat) - 1.0,
+        applied_bpm, applied_numerator, applied_denominator, False
+    )
+    if not updated:
+        return {"error": "REAPER failed to set the tempo-map event"}
+
+    read_index, read_marker, read_error = find_tempo_marker_at_position(
+        position["position_seconds"]
+    )
+    public_event = next((
+        event for event in handle_get_tempo_map({})["events"]
+        if math.isclose(
+            event["position_seconds"], position["position_seconds"],
+            rel_tol=1e-9, abs_tol=1e-7
+        )
+    ), None)
+    verified = (
+        read_error is None and read_marker is not None
+        and math.isclose(
+            read_marker[6], applied_bpm, rel_tol=1e-9, abs_tol=1e-9
+        )
+        and read_marker[7] == applied_numerator
+        and read_marker[8] == applied_denominator
+        and not bool(read_marker[9])
+        and public_event is not None
+        and math.isclose(
+            public_event["bpm"], applied_bpm,
+            rel_tol=1e-9, abs_tol=1e-9
+        )
+        and public_event["numerator"] == applied_numerator
+        and public_event["denominator"] == applied_denominator
+    )
+    if not verified:
+        if marker is None and read_index is not None:
+            rollback_succeeded = bool(
+                RPR_DeleteTempoTimeSigMarker(0, read_index)
+            )
+        elif marker is not None:
+            rollback_succeeded = bool(RPR_SetTempoTimeSigMarker(
+                0, marker_index, marker[3], -1, -1.0, marker[6],
+                marker[7], marker[8], marker[9]
+            ))
+        else:
+            rollback_succeeded = False
+        return {
+            "error": "Tempo-map event read-back verification failed",
+            "rollback_succeeded": rollback_succeeded
+        }
+
+    RPR_UpdateTimeline()
+    return {
+        "operation": "updated" if marker is not None else "created",
+        "requested": {
+            "measure": measure,
+            "beat": float(beat),
+            "bpm": bpm,
+            "numerator": numerator,
+            "denominator": denominator
+        },
+        "tempo_map_event": public_event,
+        "success": True
+    }
+
 def handle_set_project_tempo(request):
     bpm = request.get("bpm")
     if (
@@ -3410,6 +3615,7 @@ COMMAND_HANDLERS = {
     "get_tempo_map": handle_get_tempo_map,
     "set_project_tempo": handle_set_project_tempo,
     "set_project_time_signature": handle_set_project_time_signature,
+    "set_tempo_map_event": handle_set_tempo_map_event,
     "get_markers_regions": handle_get_markers_regions,
     "create_region": handle_create_region,
     "get_tracks": handle_get_tracks,

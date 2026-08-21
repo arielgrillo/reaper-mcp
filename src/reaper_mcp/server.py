@@ -188,6 +188,24 @@ def set_project_time_signature(
     )
 
 @mcp.tool()
+def set_tempo_map_event(
+    measure: int,
+    beat: float = 1.0,
+    bpm: float | None = None,
+    numerator: int | None = None,
+    denominator: int | None = None
+) -> dict:
+    """Create or update one non-linear internal tempo-map event."""
+    return send_reaper_command(
+        "set_tempo_map_event",
+        measure=measure,
+        beat=beat,
+        bpm=bpm,
+        numerator=numerator,
+        denominator=denominator
+    )
+
+@mcp.tool()
 def create_region(
     name: str, start_measure: int, end_measure: int
 ) -> dict:
