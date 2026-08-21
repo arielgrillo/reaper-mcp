@@ -367,9 +367,15 @@ def handle_get_markers_regions(request):
         is_region = bool(marker_info[3])
         position_seconds = marker_info[4]
         end_seconds = marker_info[5]
-        name = marker_info[6]
         project_number = marker_info[7]
         color = marker_info[8]
+        marker_object = RPR_GetRegionOrMarker(
+            0, enumeration_index, ""
+        )
+        name_info = RPR_GetSetRegionOrMarkerInfo_String(
+            0, marker_object, "P_NAME", "", False
+        )
+        name = name_info[4] if name_info[0] else marker_info[6]
 
         if is_region:
             start_musical = get_musical_position(position_seconds)
