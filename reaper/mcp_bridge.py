@@ -1890,37 +1890,130 @@ def handle_get_track_fx(request):
         track_name_info = RPR_GetTrackName(track, "", 512)
         track_name = track_name_info[2]
 
-        fx = []
-        fx_count = RPR_TrackFX_GetCount(track)
-
-        for fx_index in range(fx_count):
-            fx_name_info = RPR_TrackFX_GetFXName(
-                track,
-                fx_index,
-                "",
-                512
-            )
-
-            fx.append({
-                "index": fx_index + 1,
-                "name": fx_name_info[3],
-                "enabled": bool(
-                    RPR_TrackFX_GetEnabled(track, fx_index)
-                ),
-                "offline": bool(
-                    RPR_TrackFX_GetOffline(track, fx_index)
-                )
-            })
+        fx = get_track_fx_entries(track)
 
         tracks.append({
             "track_index": track_index + 1,
             "track_name": track_name,
-            "fx_count": fx_count,
+            "fx_count": len(fx),
             "fx": fx
         })
 
     return {
         "tracks": tracks
+    }
+
+def get_track_fx_entries(track):
+    entries = []
+    for reaper_fx_index in range(RPR_TrackFX_GetCount(track)):
+        fx_name_info = RPR_TrackFX_GetFXName(
+            track, reaper_fx_index, "", 512
+        )
+        entries.append({
+            "index": reaper_fx_index + 1,
+            "name": fx_name_info[3],
+            "enabled": bool(RPR_TrackFX_GetEnabled(
+                track, reaper_fx_index
+            )),
+            "offline": bool(RPR_TrackFX_GetOffline(
+                track, reaper_fx_index
+            ))
+        })
+    return entries
+
+def handle_ensure_track_fx(request):
+    track_context, error = resolve_track(request)
+    if error is not None:
+        return error
+    fx_name = request.get("fx_name")
+    if not isinstance(fx_name, str) or not fx_name.strip():
+        return {"error": "fx_name must be a non-blank string"}
+    fx_name = fx_name.strip()
+    position = request.get("position")
+    if position is not None and (
+        not isinstance(position, int) or isinstance(position, bool)
+        or position < 0
+    ):
+        return {"error": "position must be a zero-based non-negative integer"}
+
+    track = track_context["track"]
+    before = get_track_fx_entries(track)
+    matching_indexes = [
+        entry["index"] - 1 for entry in before
+        if entry["name"] == fx_name
+    ]
+    if matching_indexes:
+        current_index = matching_indexes[0]
+        if position is not None and position >= len(before):
+            return {"error": (
+                f"position {position} is out of range for an existing FX; "
+                f"track has {len(before)} FX"
+            )}
+        action = "preserved"
+        if position is not None and current_index != position:
+            RPR_TrackFX_CopyToTrack(
+                track, current_index, track, position, True
+            )
+            action = "moved"
+    else:
+        if position is not None and position > len(before):
+            return {"error": (
+                f"position {position} is out of range for insertion; "
+                f"track has {len(before)} FX"
+            )}
+        instantiate = 1 if position is None else -1000 - position
+        added_index = RPR_TrackFX_AddByName(
+            track, fx_name, False, instantiate
+        )
+        if added_index < 0:
+            return {
+                "error": f"REAPER could not locate FX plugin: {fx_name}",
+                "track_index": track_context["track_index"],
+                "track_name": track_context["track_name"]
+            }
+        action = "inserted"
+        position = added_index
+
+    after = get_track_fx_entries(track)
+    expected_index = position if position is not None else (
+        matching_indexes[0] if matching_indexes else len(after) - 1
+    )
+    verified = (
+        0 <= expected_index < len(after)
+        and after[expected_index]["name"] == fx_name
+    )
+    if not verified:
+        rollback_succeeded = None
+        if action == "inserted" and 0 <= expected_index < len(after):
+            RPR_TrackFX_Delete(track, expected_index)
+            rollback_succeeded = get_track_fx_entries(track) == before
+        elif action == "moved":
+            matching_after = [
+                entry["index"] - 1 for entry in after
+                if entry["name"] == fx_name
+            ]
+            if matching_after:
+                RPR_TrackFX_CopyToTrack(
+                    track, matching_after[0], track, current_index, True
+                )
+                rollback_succeeded = get_track_fx_entries(track) == before
+        return {
+            "error": "FX chain read-back verification failed",
+            "requested_fx_name": fx_name,
+            "expected_position": expected_index,
+            "fx_read_back": after,
+            "rollback_succeeded": rollback_succeeded
+        }
+    return {
+        "success": True,
+        "track_index": track_context["track_index"],
+        "track_name": track_context["track_name"],
+        "fx_name": fx_name,
+        "fx_index": expected_index + 1,
+        "position": expected_index,
+        "action": action,
+        "fx": after[expected_index],
+        "fx_count": len(after)
     }
 
 def resolve_track_fx(request):
@@ -3809,6 +3902,7 @@ COMMAND_HANDLERS = {
     "get_current_context": handle_get_current_context,
     "get_take_fx": handle_get_take_fx,
     "get_track_fx": handle_get_track_fx,
+    "ensure_track_fx": handle_ensure_track_fx,
     "get_fx_parameters": handle_get_fx_parameters,
     "get_fx_parameter": handle_get_fx_parameter,
     "get_fx_presets": handle_get_fx_presets,

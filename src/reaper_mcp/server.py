@@ -254,6 +254,20 @@ def get_track_fx() -> dict:
     """Return the FX chains for all tracks in the current REAPER project."""
     return send_reaper_command("get_track_fx")
 
+
+@mcp.tool()
+def ensure_track_fx(
+    track_index: int, fx_name: str, position: int | None = None
+) -> dict:
+    """Ensure a named FX exists, optionally at a zero-based chain position."""
+    return send_reaper_command(
+        "ensure_track_fx",
+        track_index=track_index,
+        fx_name=fx_name,
+        position=position
+    )
+
+
 @mcp.tool()
 def get_fx_parameters(track_index: int, fx_index: int) -> dict:
     """Return parameters for one FX on a track in the current REAPER project."""

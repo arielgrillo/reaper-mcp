@@ -1057,6 +1057,25 @@
         "Use native REAPER folder semantics without adding routing, FX, recording configuration, templates, or arbitrary nested-tree orchestration."
       ],
       "bugs": []
+    },
+    {
+      "id": "WR-016",
+      "category": "mutation",
+      "title": "Ensure track FX",
+      "status": "testing",
+      "priority": "high",
+      "capability": "ensure_track_fx",
+      "description": "Ensure a named VST, VST3, or VSTi FX exists on a normal, child, or folder track, optionally at an explicit chain position, without duplicating an existing exact match.",
+      "depends_on": ["RO-004"],
+      "acceptance_criteria": [
+        "Validate a one-based track target and a non-blank REAPER-recognizable FX name before mutation.",
+        "Preserve an existing exact matching FX instead of creating a duplicate, and safely move it when a different explicit zero-based chain position is requested.",
+        "Insert a missing FX at the requested zero-based position or append it when position is omitted while preserving unrelated FX order.",
+        "Read the resulting FX chain back and return track identity, FX identity, final index, position, and whether the FX was preserved, moved, or inserted.",
+        "Fail clearly when REAPER cannot locate the requested plugin and do not silently substitute another plugin.",
+        "Apply the same native track-FX semantics to normal, child, and folder tracks and to VST, VST3, and VSTi plugins without configuring routing or multi-output tracks."
+      ],
+      "bugs": []
     }
   ]
 }

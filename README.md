@@ -160,6 +160,7 @@ most include additional identity and raw/readable fields useful to clients.
 | Tool | Mode | Input | Purpose and constraints | Response summary | Example request |
 | --- | --- | --- | --- | --- | --- |
 | `get_track_fx` | Read-only | none | Inspect FX chains for all normal tracks. | Per-track FX identities, indexes, enabled/offline state, and preset metadata. | `{}` |
+| `ensure_track_fx` | Mutation | `track_index: int`, `fx_name: str`, `position?: int` | Ensure an exact REAPER-recognizable VST, VST3, or VSTi name exists on a normal, child, or folder track. `position` is zero-based; omitted means preserve an existing match or append a missing FX. | Track/FX identity, one-based final FX index, zero-based position, and `preserved`, `moved`, or `inserted` action after chain read-back. | `{"track_index": 2, "fx_name": "VST: GTune (GVST)", "position": 0}` |
 | `get_take_fx` | Read-only | `track_index: int`, `item_index: int`, `take_index: int` | Inspect the FX chain of one validated take. | Take identity and FX metadata. | `{"track_index": 2, "item_index": 1, "take_index": 1}` |
 | `get_fx_parameters` | Read-only | `track_index: int`, `fx_index: int` | List parameters for one track FX. | Parameter indexes/names, normalized values, formatted values, and steps where exposed. | `{"track_index": 2, "fx_index": 1}` |
 | `get_fx_parameter` | Read-only | `track_index: int`, `fx_index: int`, `parameter_index: int` | Read one parameter from one track FX. | Track/FX/parameter identity, normalized value, formatted value, and range metadata. | `{"track_index": 2, "fx_index": 1, "parameter_index": 3}` |
@@ -248,6 +249,10 @@ earlier responses.
 ## Safety and mutation behavior
 
 - All mutations resolve and validate their explicit track/FX/item targets.
+- `ensure_track_fx` compares exact FX display names, prevents duplicates on
+  repeated calls, and uses REAPER's native chain move when an existing match is
+  requested at a different position. Missing plugins fail without fallback;
+  VSTi insertion does not create output tracks, routing, sends, or presets.
 - Values are checked before mutation and read back before success is reported.
 - Inputs outside supported ranges are errors rather than silently clamped.
 - Initial tempo and meter writes preserve later tempo-map events. Setting meter
