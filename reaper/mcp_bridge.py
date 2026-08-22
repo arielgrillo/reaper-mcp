@@ -2817,12 +2817,12 @@ def handle_set_track_record_arm(request):
     if not isinstance(armed, bool):
         return {"error": "armed must be a boolean"}
     write_succeeded = RPR_SetMediaTrackInfo_Value(
-        context["track"], "B_RECARM", 1.0 if armed else 0.0
+        context["track"], "I_RECARM", 1.0 if armed else 0.0
     )
     if not write_succeeded:
         return {"error": "REAPER failed to set track record-arm state"}
     applied_armed = bool(RPR_GetMediaTrackInfo_Value(
-        context["track"], "B_RECARM"
+        context["track"], "I_RECARM"
     ))
     RPR_TrackList_AdjustWindows(False)
     return {
