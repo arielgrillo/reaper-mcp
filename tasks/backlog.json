@@ -1104,8 +1104,9 @@
         {
           "id": "BUG-010",
           "description": "set_track_record_arm is registered twice in the MCP server, producing a duplicate-tool warning during runtime initialization.",
-          "status": "open",
-          "discovered_during": "runtime-validation"
+          "status": "fixed",
+          "discovered_during": "runtime-validation",
+          "fixed_in": "8c0b70c74729b2ee9c02b44113ee94148242062f"
         }
       ]
     }
