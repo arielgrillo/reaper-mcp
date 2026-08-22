@@ -1100,7 +1100,14 @@
         "Read the record-arm state back and report requested and applied values before reporting success.",
         "Do not change recording input, monitoring, routing, transport, or other tracks."
       ],
-      "bugs": []
+      "bugs": [
+        {
+          "id": "BUG-010",
+          "description": "set_track_record_arm is registered twice in the MCP server, producing a duplicate-tool warning during runtime initialization.",
+          "status": "open",
+          "discovered_during": "runtime-validation"
+        }
+      ]
     }
   ]
 }

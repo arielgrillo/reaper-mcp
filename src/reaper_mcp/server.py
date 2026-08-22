@@ -407,15 +407,6 @@ def set_track_record_arm(track_index: int, armed: bool) -> dict:
     )
 
 @mcp.tool()
-def set_track_record_arm(track_index: int, armed: bool) -> dict:
-    """Set one track's record-arm state."""
-    return send_reaper_command(
-        "set_track_record_arm",
-        track_index=track_index,
-        armed=armed
-    )
-
-@mcp.tool()
 def set_track_solo(track_index: int, solo: bool) -> dict:
     """Set one track's normal solo state."""
     return send_reaper_command(
