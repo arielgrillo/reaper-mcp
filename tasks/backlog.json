@@ -1111,8 +1111,9 @@
         {
           "id": "BUG-011",
           "description": "The record-arm mutation uses the nonexistent B_RECARM media-track attribute instead of REAPER's writable I_RECARM attribute, so the requested state is rejected and remains unchanged.",
-          "status": "open",
-          "discovered_during": "runtime-validation"
+          "status": "fixed",
+          "discovered_during": "runtime-validation",
+          "fixed_in": "44c95165ac6f04c35ba23740b86529451978a419"
         }
       ]
     }
