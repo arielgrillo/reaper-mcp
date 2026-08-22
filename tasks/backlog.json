@@ -1079,8 +1079,9 @@
         {
           "id": "BUG-009",
           "description": "Moving an existing FX toward a higher position uses the final target index directly with TrackFX_CopyToTrack, which REAPER interprets before removing the source and therefore leaves an adjacent move unchanged.",
-          "status": "open",
-          "discovered_during": "runtime-validation"
+          "status": "fixed",
+          "discovered_during": "runtime-validation",
+          "fixed_in": "b4cb4b744a7fa24adb99aa9dd268a9ee2ebe24e7"
         }
       ]
     }
