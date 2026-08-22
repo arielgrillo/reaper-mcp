@@ -1921,6 +1921,11 @@ def get_track_fx_entries(track):
         })
     return entries
 
+def get_track_fx_move_destination(current_index, target_index):
+    if current_index < target_index:
+        return target_index + 1
+    return target_index
+
 def handle_ensure_track_fx(request):
     track_context, error = resolve_track(request)
     if error is not None:
@@ -1952,7 +1957,11 @@ def handle_ensure_track_fx(request):
         action = "preserved"
         if position is not None and current_index != position:
             RPR_TrackFX_CopyToTrack(
-                track, current_index, track, position, True
+                track,
+                current_index,
+                track,
+                get_track_fx_move_destination(current_index, position),
+                True
             )
             action = "moved"
     else:
@@ -1993,8 +2002,15 @@ def handle_ensure_track_fx(request):
                 if entry["name"] == fx_name
             ]
             if matching_after:
+                rollback_source = matching_after[0]
                 RPR_TrackFX_CopyToTrack(
-                    track, matching_after[0], track, current_index, True
+                    track,
+                    rollback_source,
+                    track,
+                    get_track_fx_move_destination(
+                        rollback_source, current_index
+                    ),
+                    True
                 )
                 rollback_succeeded = get_track_fx_entries(track) == before
         return {
