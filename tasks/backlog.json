@@ -1084,6 +1084,23 @@
           "fixed_in": "b4cb4b744a7fa24adb99aa9dd268a9ee2ebe24e7"
         }
       ]
+    },
+    {
+      "id": "WR-017",
+      "category": "mutation",
+      "title": "Set track record-arm state",
+      "status": "testing",
+      "priority": "high",
+      "capability": "set_track_record_arm",
+      "description": "Arm or disarm one validated track for recording without changing its recording input, monitoring mode, or unrelated tracks.",
+      "depends_on": ["RO-003"],
+      "acceptance_criteria": [
+        "Validate a one-based track target and boolean armed value before mutation.",
+        "Change only the requested track's native record-arm state.",
+        "Read the record-arm state back and report requested and applied values before reporting success.",
+        "Do not change recording input, monitoring, routing, transport, or other tracks."
+      ],
+      "bugs": []
     }
   ]
 }

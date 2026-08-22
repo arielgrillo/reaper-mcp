@@ -2809,6 +2809,30 @@ def handle_set_track_mute(request):
         "success": applied_muted == muted
     }
 
+def handle_set_track_record_arm(request):
+    context, error = resolve_track(request)
+    if error is not None:
+        return error
+    armed = request.get("armed")
+    if not isinstance(armed, bool):
+        return {"error": "armed must be a boolean"}
+    write_succeeded = RPR_SetMediaTrackInfo_Value(
+        context["track"], "B_RECARM", 1.0 if armed else 0.0
+    )
+    if not write_succeeded:
+        return {"error": "REAPER failed to set track record-arm state"}
+    applied_armed = bool(RPR_GetMediaTrackInfo_Value(
+        context["track"], "B_RECARM"
+    ))
+    RPR_TrackList_AdjustWindows(False)
+    return {
+        "track_index": context["track_index"],
+        "track_name": context["track_name"],
+        "requested_armed": armed,
+        "applied_armed": applied_armed,
+        "success": applied_armed == armed
+    }
+
 def handle_set_track_solo(request):
     context, error = resolve_track(request)
 
@@ -3930,6 +3954,7 @@ COMMAND_HANDLERS = {
     "set_track_volume": handle_set_track_volume,
     "set_track_pan": handle_set_track_pan,
     "set_track_mute": handle_set_track_mute,
+    "set_track_record_arm": handle_set_track_record_arm,
     "set_track_solo": handle_set_track_solo,
     "create_note_item": handle_create_note_item,
     "create_midi_item": handle_create_midi_item,
